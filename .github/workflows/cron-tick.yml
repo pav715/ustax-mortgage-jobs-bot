@@ -1,0 +1,39 @@
+name: Hourly Cron Tick
+
+# Reliable scheduler — triggers auto-hourly.yml via API every hour 8AM-11PM IST
+on:
+  schedule:
+    - cron: "30 2-17 * * *"
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: IST active hours gate
+        id: gate
+        run: |
+          IST_H=$(TZ=Asia/Kolkata date +%-H)
+          echo "IST hour: $IST_H"
+          if [ "$IST_H" -lt 8 ] || [ "$IST_H" -gt 23 ]; then
+            echo "Outside 8AM-11PM IST"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch Auto Hourly Bot
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -z "$GH_PAT" ]; then echo "GH_PAT missing"; exit 1; fi
+          code=$(curl -s -o /tmp/out.txt -w "%{{http_code}}" -X POST \
+            -H "Authorization: Bearer ${GH_PAT}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/auto-hourly.yml/dispatches" \
+            -d '{{"ref":"main"}}')
+          echo "HTTP $code"
+          cat /tmp/out.txt
+          [ "$code" = "204" ] || exit 1
