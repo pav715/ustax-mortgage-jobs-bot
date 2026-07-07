@@ -1,6 +1,40 @@
 name: Auto Hourly Bot
 
+# Single auto workflow: 8 AM - 11 PM IST every hour (repo-only, no laptop)
 on:
+  schedule:
+    - cron: "0 8 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 9 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 10 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 11 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 12 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 13 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 14 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 15 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 16 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 17 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 18 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 19 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 20 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 21 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 22 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "0 23 * * *"
+      timezone: "Asia/Kolkata"
   workflow_dispatch:
 
 permissions:
@@ -17,6 +51,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log trigger
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Schedule: ${{ github.event.schedule }}"
+          echo "IST: $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S %Z')"
+
       - name: IST hour gate
         id: gate
         run: |
@@ -31,21 +71,24 @@ jobs:
           if [ -f bot_state.json ]; then
             SHOULD=$(python3 - <<'PY'
           import json
-          from datetime import datetime
+          from datetime import datetime, timezone
           try:
               s = json.load(open("bot_state.json"))
               last = s.get("last_run_at", "")
               if not last:
                   print("true")
               else:
-                  secs = (datetime.utcnow() - datetime.fromisoformat(last)).total_seconds()
+                  dt = datetime.fromisoformat(last)
+                  if dt.tzinfo is None:
+                      dt = dt.replace(tzinfo=timezone.utc)
+                  secs = (datetime.now(timezone.utc) - dt).total_seconds()
                   print("false" if secs < 2700 else "true")
           except Exception:
               print("true")
           PY
           )
             if [ "$SHOULD" = "false" ]; then
-              echo "Dedupe skip"
+              echo "Dedupe skip (<45 min since last run)"
               echo "run=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
