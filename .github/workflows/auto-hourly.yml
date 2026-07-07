@@ -1,8 +1,6 @@
 name: Auto Hourly Bot
 
 on:
-  schedule:
-    - cron: "30 2-17 * * *"
   workflow_dispatch:
 
 permissions:
