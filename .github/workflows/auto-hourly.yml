@@ -1,40 +1,9 @@
 name: Auto Hourly Bot
 
-# Single auto workflow: 8 AM - 11 PM IST every hour (repo-only, no laptop)
+# Auto run 8 AM - 11 PM IST (UTC 02:30 - 17:30). Single workflow, repo-only.
 on:
   schedule:
-    - cron: "0 8 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 9 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 10 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 11 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 12 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 13 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 14 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 15 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 16 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 17 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 18 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 19 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 20 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 21 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 22 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "0 23 * * *"
-      timezone: "Asia/Kolkata"
+    - cron: "30 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17 * * *"
   workflow_dispatch:
 
 permissions:
