@@ -1,8 +1,23 @@
-name: Auto 2:00 PM IST
+name: Auto Hourly Bot
 
 on:
   schedule:
+    - cron: "30 2 * * *"
+    - cron: "30 3 * * *"
+    - cron: "30 4 * * *"
+    - cron: "30 5 * * *"
+    - cron: "30 6 * * *"
+    - cron: "30 7 * * *"
     - cron: "30 8 * * *"
+    - cron: "30 9 * * *"
+    - cron: "30 10 * * *"
+    - cron: "30 11 * * *"
+    - cron: "30 12 * * *"
+    - cron: "30 13 * * *"
+    - cron: "30 14 * * *"
+    - cron: "30 15 * * *"
+    - cron: "30 16 * * *"
+    - cron: "30 17 * * *"
   workflow_dispatch:
 
 permissions:
@@ -19,16 +34,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Dedupe guard
+      - name: IST hour gate
         id: gate
         run: |
+          IST_H=$(TZ=Asia/Kolkata date +%-H)
+          IST_M=$(TZ=Asia/Kolkata date +%-M)
+          echo "IST: ${IST_H}:${IST_M}"
+          if [ "$IST_H" -lt 8 ] || [ "$IST_H" -gt 23 ]; then
+            echo "Outside 8:00-23:00 IST window"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ -f bot_state.json ]; then
             SHOULD=$(python3 - <<'PY'
           import json
           from datetime import datetime
           try:
-              state = json.load(open("bot_state.json"))
-              last = state.get("last_run_at", "")
+              s = json.load(open("bot_state.json"))
+              last = s.get("last_run_at", "")
               if not last:
                   print("true")
               else:
@@ -39,7 +62,7 @@ jobs:
           PY
           )
             if [ "$SHOULD" = "false" ]; then
-              echo "Ran within 45 min — skip"
+              echo "Dedupe skip"
               echo "run=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
@@ -91,5 +114,5 @@ jobs:
         run: |
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
-            -d "text=❌ US Tax Mortgage Jobs Bot failed — check GitHub Actions logs" \
+            -d "text=❌ US Tax Mortgage Jobs Bot failed — check GitHub Actions" \
             -d "parse_mode=Markdown" || true
