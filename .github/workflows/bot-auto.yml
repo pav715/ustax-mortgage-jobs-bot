@@ -1,10 +1,9 @@
-name: Auto Hourly Bot
+name: Bot Auto Run
 
-# Auto run 8 AM - 11 PM IST (UTC 02:30 - 17:30). Single workflow, repo-only.
 on:
-  schedule:
-    - cron: "30 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17 * * *"
   workflow_dispatch:
+  schedule:
+    - cron: '30 2-17 * * *'
 
 permissions:
   contents: write
@@ -23,17 +22,14 @@ jobs:
       - name: Log trigger
         run: |
           echo "Event: ${{ github.event_name }}"
-          echo "Schedule: ${{ github.event.schedule }}"
           echo "IST: $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S %Z')"
 
       - name: IST hour gate
         id: gate
         run: |
           IST_H=$(TZ=Asia/Kolkata date +%-H)
-          IST_M=$(TZ=Asia/Kolkata date +%-M)
-          echo "IST: ${IST_H}:${IST_M}"
+          echo "IST hour: ${IST_H}"
           if [ "$IST_H" -lt 8 ] || [ "$IST_H" -gt 23 ]; then
-            echo "Outside 8:00-23:00 IST window"
             echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -57,7 +53,7 @@ jobs:
           PY
           )
             if [ "$SHOULD" = "false" ]; then
-              echo "Dedupe skip (<45 min since last run)"
+              echo "Dedupe skip"
               echo "run=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi

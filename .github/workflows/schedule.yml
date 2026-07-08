@@ -1,0 +1,41 @@
+name: Hourly Schedule
+
+# DO NOT EDIT — stable scheduler only. Dispatches bot-auto.yml each hour 8AM-11PM IST.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'
+
+permissions:
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: IST active window
+        id: gate
+        run: |
+          H=$(TZ=Asia/Kolkata date +%-H)
+          echo "IST hour: $H"
+          if [ "$H" -lt 8 ] || [ "$H" -gt 23 ]; then
+            echo "Outside 8AM-11PM IST"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dispatch bot-auto.yml
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          code=$(curl -s -o /tmp/out.txt -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/bot-auto.yml/dispatches" \
+            -d '{"ref":"main"}')
+          echo "HTTP ${code}"
+          cat /tmp/out.txt || true
+          [ "${code}" = "204" ] || exit 1
