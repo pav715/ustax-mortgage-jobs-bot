@@ -84,6 +84,12 @@ MORTGAGE_DOMAIN_KEYWORDS = {
     "loss mitigation", "default servicing", "mortgage tax", "1098", "tax servicing",
 }
 
+# Title must contain US Mortgage (e.g. "US Mortgage Analyst", "Senior US Mortgage Associate")
+US_MORTGAGE_TITLE = re.compile(
+    r"\b(u\.?\s*s\.?\s*mortgage|us\s*mortgage)\b",
+    re.IGNORECASE,
+)
+
 TITLE_HINTS = re.compile(
     r"\b("
     r"mortgage|loan\s*servic|servicing|process\s*associate|mortgage\s*tax|"
@@ -133,7 +139,7 @@ def is_india_location(job):
 
 
 def is_mortgage_tax_job(job):
-    """Accept: 2+ mortgage/tax keywords + mortgage domain + title hint."""
+    """Accept US Mortgage titled roles, or 2+ mortgage keywords + domain + title hint."""
     desc = (job.get("description") or "").lower()
     title = (job.get("title") or "").lower()
     company = (job.get("company") or "").lower()
@@ -144,13 +150,18 @@ def is_mortgage_tax_job(job):
     if INDIAN_TAX_BLOCKLIST.search(blob):
         return False
 
+    if US_MORTGAGE_TITLE.search(title):
+        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: us mortgage title")
+        return True
+
     matched = _keyword_hits(blob, MORTGAGE_KEYWORDS)
     has_domain = any(kw in blob for kw in MORTGAGE_DOMAIN_KEYWORDS)
     title_ok = bool(TITLE_HINTS.search(title) or TITLE_HINTS.search(company))
 
     if len(matched) >= 2 and has_domain and title_ok:
         print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: {matched}")
-    return len(matched) >= 2 and has_domain and title_ok
+        return True
+    return False
 
 
 def _mark_run_complete(state):
