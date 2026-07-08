@@ -18,6 +18,12 @@ KEYWORDS = [
     "Mortgage Closing",
     "Mortgage Specialist",
     "Live Underwriting",
+    "Mortgage Analyst",
+    "Loan Officer Mortgage",
+    "Mortgage Consultant",
+    "Mortgage Associate",
+    "Default Servicing",
+    "Loss Mitigation",
 ]
 
 LOCATIONS = [
