@@ -1,10 +1,9 @@
 name: Hourly Schedule
 
-# DO NOT EDIT — stable scheduler only. Dispatches bot-auto.yml each hour 8AM-11PM IST.
+# DISABLED — cron-job.org triggers Hourly Orchestrator on ustax-jobs-bot instead.
+# Kept for manual testing only (workflow_dispatch).
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 * * * *'
 
 permissions:
   actions: write
@@ -14,28 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: IST active window
-        id: gate
+      - name: Manual dispatch info
         run: |
-          H=$(TZ=Asia/Kolkata date +%-H)
-          echo "IST hour: $H"
-          if [ "$H" -lt 8 ] || [ "$H" -gt 23 ]; then
-            echo "Outside 8AM-11PM IST"
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Dispatch bot-auto.yml
-        if: steps.gate.outputs.run == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          code=$(curl -s -o /tmp/out.txt -w "%{http_code}" -X POST \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/dispatches" \
-            -d '{"event_type":"hourly-run"}')
-          echo "HTTP ${code}"
-          cat /tmp/out.txt || true
-          [ "${code}" = "204" ] || exit 1
+          echo "Auto schedule is handled by cron-job.org -> Hourly Orchestrator."
+          echo "To run the bot now, use Bot Auto Run workflow."
