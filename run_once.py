@@ -75,6 +75,11 @@ MORTGAGE_KEYWORDS = [
     "loan number", "production environment", "mis report", "loan origination",
     "servicer", "mortgage compliance", "mortgage analyst", "process associate",
     "form 1098", "irs", "real estate tax",
+    "mortgage underwriter", "mortgage underwriting", "us mortgage underwriting",
+    "live underwriting", "mortgage loan originator", "loan officer",
+    "mortgage loan officer", "mortgage loan processor", "mortgage closing",
+    "mortgage specialist", "mortgage lending assurance", "loan processor",
+    "loan writer", "mortgage writer", "underwriting",
 ]
 
 MORTGAGE_DOMAIN_KEYWORDS = {
@@ -82,20 +87,37 @@ MORTGAGE_DOMAIN_KEYWORDS = {
     "wells fargo", "escrow", "foreclosure", "hmda", "fannie", "freddie", "ginnie",
     "mers", "msr", "mbs", "credit pack", "document indexing", "loan documentation",
     "loss mitigation", "default servicing", "mortgage tax", "1098", "tax servicing",
+    "underwriting", "loan originator", "loan officer", "loan processor",
 }
 
-# Title must contain US Mortgage (e.g. "US Mortgage Analyst", "Senior US Mortgage Associate")
-US_MORTGAGE_TITLE = re.compile(
-    r"\b(u\.?\s*s\.?\s*mortgage|us\s*mortgage)\b",
+# Title match — US Mortgage or common mortgage role titles (Telegram post if title fits)
+MORTGAGE_ROLE_TITLE = re.compile(
+    r"\b("
+    r"u\.?\s*s\.?\s*mortgage|us\s*mortgage|"
+    r"mortgage\s*underwrit(?:ing|er)?|underwrit(?:ing|er).{0,30}mortgage|"
+    r"live\s*underwrit(?:ing|er)?|"
+    r"mortgage\s*loan\s*(?:originator|officer|processor|writer|clos(?:ing|er)?)|"
+    r"mortgage\s*(?:loan\s*)?(?:processor|writer|clos(?:ing|er)?|specialist)|"
+    r"mortgage\s*lending\s*assurance|"
+    r"mortgage\s*operat(?:ions?|ional)?|"
+    r"mortgage\s*loan\s*officer|mortgage\s*loan\s*originator|"
+    r"loan\s*officer.{0,20}mortgage|mortgage.{0,20}loan\s*officer|"
+    r"loan\s*originator.{0,20}mortgage|mortgage.{0,20}loan\s*originator"
+    r")\b",
     re.IGNORECASE,
 )
+
+# Legacy alias
+US_MORTGAGE_TITLE = MORTGAGE_ROLE_TITLE
 
 TITLE_HINTS = re.compile(
     r"\b("
     r"mortgage|loan\s*servic|servicing|process\s*associate|mortgage\s*tax|"
     r"document\s*index|credit\s*pack|loss\s*mitigation|escrow|foreclosure|"
     r"mortgage\s*operat|mortgage\s*analyst|loan\s*operat|tax\s*servic|"
-    r"default\s*servic|hmda|mers|msr|black\s*knight|wells\s*fargo"
+    r"default\s*servic|hmda|mers|msr|black\s*knight|wells\s*fargo|"
+    r"underwrit(?:ing|er)|loan\s*officer|loan\s*originator|loan\s*processor|"
+    r"mortgage\s*clos(?:ing|er)?|mortgage\s*specialist|live\s*underwrit"
     r")\b",
     re.IGNORECASE,
 )
@@ -139,7 +161,7 @@ def is_india_location(job):
 
 
 def is_mortgage_tax_job(job):
-    """Accept US Mortgage titled roles, or 2+ mortgage keywords + domain + title hint."""
+    """Accept mortgage role titles, or 2+ mortgage keywords + domain + title hint."""
     desc = (job.get("description") or "").lower()
     title = (job.get("title") or "").lower()
     company = (job.get("company") or "").lower()
@@ -150,8 +172,13 @@ def is_mortgage_tax_job(job):
     if INDIAN_TAX_BLOCKLIST.search(blob):
         return False
 
-    if US_MORTGAGE_TITLE.search(title):
-        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: us mortgage title")
+    if MORTGAGE_ROLE_TITLE.search(title):
+        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: mortgage role title")
+        return True
+
+    # Bare Underwriter / Loan Officer when mortgage context is present
+    if re.search(r"\b(underwriter|loan\s*officer)\b", title) and re.search(r"\bmortgage\b", blob):
+        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: underwriter/loan officer + mortgage")
         return True
 
     matched = _keyword_hits(blob, MORTGAGE_KEYWORDS)
