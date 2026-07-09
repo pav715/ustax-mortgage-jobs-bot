@@ -35,7 +35,7 @@ BLOCKLIST = re.compile(
     r"\bvat\b(?!\s*us)|service\s*tax|excise\s*duty|customs\s*duty|"
     r"transfer\s*pricing|tax\s*litigation|"
     r"chartered\s*accountant|ca\s*article|ca\s*analyst|"
-    r"(?<!us\s)(?<!federal\s)finance\s*analyst(?!\s*us)|accounts\s*analyst|^accountant$|"
+    r"accounts\s*analyst|^accountant$|"
     r"finance\s*executive|accounts\s*executive|"
     r"tax\s*auditor|statutory\s*compliance"
     r")\b",
@@ -64,49 +64,119 @@ INDIAN_TAX_BLOCKLIST = re.compile(
     re.IGNORECASE,
 )
 
-# Resume-aligned: Black Knight (loan lifecycle, doc indexing) + Wells Fargo mortgage ops
+# 100 keywords + 50 title keywords — loan / mortgage / financial services
 MORTGAGE_KEYWORDS = [
-    "mortgage", "home loan", "housing loan", "loan servicing", "loan lifecycle",
-    "servicing platform", "black knight", "msp mortgage", "empower loan", "wells fargo",
-    "document indexing", "doc centre", "doc center", "credit pack", "loan documentation",
-    "loss mitigation", "default servicing", "foreclosure", "escrow", "hmda",
-    "fannie mae", "freddie mac", "ginnie mae", "mers", "mortgage servicing",
-    "mortgage operations", "mortgage tax", "property tax escrow", "1098",
-    "mortgage interest", "tax servicing", "msr", "mbs", "remic", "subservicing",
-    "loan origination", "servicer", "mortgage compliance", "mortgage analyst",
-    "process associate", "form 1098", "real estate tax", "mortgage underwriter",
-    "mortgage underwriting", "live underwriting", "mortgage loan originator",
-    "loan officer", "mortgage loan officer", "mortgage loan processor",
-    "mortgage closing", "mortgage specialist", "loan processor", "underwriter",
-    "post closer", "post-closer", "closing disclosure", "title insurance",
-    "mortgage banking", "loan admin", "loan administrator", "servicing analyst",
-    "collections", "workout", "bankruptcy", "reo", "short sale", "modification",
+    # Financial / Loan (1–20)
+    "financial analysis", "loan lifecycle", "loan portfolio", "loan management",
+    "loan processing", "loan approval", "loan documentation", "credit risk assessment",
+    "credit analysis", "credit pack", "credit policy", "loan portfolio management",
+    "portfolio review", "portfolio analysis", "portfolio performance", "loan origination",
+    "loan servicing", "loan underwriting", "mortgage operations", "mortgage processing",
+    # Analysis / Reporting (21–40)
+    "financial modelling", "variance analysis", "mis reporting", "financial reporting",
+    "dashboard reporting", "performance metrics", "financial data analysis", "data analysis",
+    "business intelligence", "risk exposure", "delinquency analysis", "delinquency trends",
+    "financial indicators", "key performance indicators", "exception handling", "trend analysis",
+    "benchmarking analysis", "comparative analysis", "forecasting", "budget analysis",
+    # Compliance / Regulatory (41–60)
+    "regulatory compliance", "compliance monitoring", "federal regulations", "state regulations",
+    "regulatory requirements", "regulatory updates", "regulatory reporting", "compliance standards",
+    "credit policy adherence", "policy compliance", "risk management", "risk mitigation",
+    "internal controls", "audit compliance", "sox compliance", "anti-money laundering",
+    "know your customer", "regulatory guidelines", "compliance framework", "risk assessment",
+    # Operations / Process (61–80)
+    "document management", "credit pack indexing", "document indexing", "pdf processing",
+    "document processing", "data management", "database management", "data integrity",
+    "data quality", "remote desktop operations", "production environment", "process documentation",
+    "process improvement", "process optimization", "workflow management", "quality control",
+    "quality assurance", "standard operating procedures", "process compliance",
+    # Banking / Companies (81–90)
+    "wells fargo", "black knight", "mortgage banking", "commercial banking", "retail banking",
+    "investment banking", "banking operations", "banking systems", "financial services",
+    # Coordination / Management (91–100)
+    "cross-functional coordination", "stakeholder management", "stakeholder reporting",
+    "team collaboration", "team training", "knowledge management", "process training",
+    "cost monitoring", "exception management", "workflow planning",
+    # Mortgage-specific (retained)
+    "mortgage", "home loan", "housing loan", "escrow", "foreclosure", "hmda",
+    "fannie mae", "freddie mac", "loss mitigation", "default servicing", "msr", "mers",
+    "property tax escrow", "1098", "mortgage tax", "tax servicing", "subservicing",
+    # Title keywords (50 roles)
+    "financial analyst", "senior financial analyst", "junior financial analyst",
+    "financial data analyst", "financial modelling analyst", "financial operations analyst",
+    "financial planning analyst", "financial performance analyst", "financial systems analyst",
+    "financial reporting analyst", "loan analyst", "senior loan analyst", "credit analyst",
+    "senior credit analyst", "credit risk analyst", "loan operations analyst",
+    "loan documentation analyst", "loan processing analyst", "mortgage analyst",
+    "mortgage operations analyst", "compliance analyst", "senior compliance analyst",
+    "regulatory compliance analyst", "risk analyst", "senior risk analyst",
+    "portfolio risk analyst", "compliance officer", "regulatory affairs analyst",
+    "audit analyst", "internal compliance analyst", "operations analyst",
+    "senior operations analyst", "mis analyst", "business analyst", "process analyst",
+    "process improvement analyst", "quality assurance analyst", "banking operations analyst",
+    "finance operations analyst", "process associate", "senior process associate",
+    "process manager", "team lead", "operations manager", "portfolio manager",
+    "relationship manager", "account manager", "project analyst", "document analyst",
 ]
 
-MORTGAGE_DOMAIN_KEYWORDS = {
-    "mortgage", "loan servicing", "loan lifecycle", "servicing", "black knight",
-    "wells fargo", "escrow", "foreclosure", "hmda", "fannie", "freddie", "ginnie",
-    "mers", "msr", "mbs", "credit pack", "document indexing", "loan documentation",
-    "loss mitigation", "default servicing", "mortgage tax", "1098", "tax servicing",
-    "underwriting", "loan originator", "loan officer", "loan processor",
-}
+# Loan / mortgage / financial services signal — generic titles need one of these
+REQUIRED_MORTGAGE_SIGNAL = re.compile(
+    r"\b("
+    r"mortgage|loan\s|credit\s|loan\s*servic|loan\s*process|loan\s*document|"
+    r"loan\s*lifecycle|loan\s*portfolio|loan\s*underwrit|loan\s*originat|"
+    r"credit\s*pack|credit\s*risk|document\s*index|credit\s*analysis|"
+    r"wells\s*fargo|black\s*knight|mortgage\s*bank|banking\s*operat|"
+    r"financial\s*services|loan\s*management|servicing|delinquency|"
+    r"escrow|foreclosure|mortgage\s*operat|regulatory\s*compliance|"
+    r"compliance\s*monitor|risk\s*management|portfolio\s*risk"
+    r")\b",
+    re.IGNORECASE,
+)
 
-# Title match — US Mortgage or common mortgage role titles (Telegram post if title fits)
+# Generic titles — need loan/mortgage signal in full text
+GENERIC_FINANCE_TITLE = re.compile(
+    r"\b("
+    r"financial\s*analyst|financial\s*data\s*analyst|financial\s*modelling\s*analyst|"
+    r"financial\s*planning\s*analyst|financial\s*performance\s*analyst|"
+    r"financial\s*systems\s*analyst|financial\s*reporting\s*analyst|"
+    r"operations\s*analyst|mis\s*analyst|data\s*analyst|business\s*analyst|"
+    r"process\s*analyst|process\s*improvement\s*analyst|quality\s*assurance\s*analyst|"
+    r"process\s*associate|process\s*manager|team\s*lead|operations\s*manager|"
+    r"portfolio\s*manager|relationship\s*manager|account\s*manager|"
+    r"project\s*analyst|document\s*analyst|audit\s*analyst"
+    r")\b",
+    re.IGNORECASE,
+)
+
 MORTGAGE_ROLE_TITLE = re.compile(
     r"\b("
-    r"mortgage|home\s*loan|housing\s*loan|"
-    r"u\.?\s*s\.?\s*mortgage|us\s*mortgage|"
-    r"loan\s*servic(?:ing|er|es)?|default\s*servic(?:ing|er)?|"
-    r"mortgage\s*underwrit(?:ing|er)?|underwrit(?:ing|er)|live\s*underwrit(?:ing|er)?|"
-    r"mortgage\s*loan\s*(?:originator|officer|processor|writer|clos(?:ing|er)?)|"
-    r"mortgage\s*(?:loan\s*)?(?:processor|writer|clos(?:ing|er)?|specialist|analyst|associate|consultant|banker|banking)|"
-    r"mortgage\s*lending|mortgage\s*operat(?:ions?|ional)?|"
-    r"servicing\s*analyst|process\s*associate|loan\s*admin(?:istrator)?|"
-    r"loan\s*officer|loan\s*originator|loan\s*processor|loan\s*clos(?:ing|er)?|"
-    r"post[\s-]*clos(?:ing|er)?|loss\s*mitigation|credit\s*pack|document\s*index|"
-    r"escrow|foreclosure|hmda|mers|msr|subservic(?:ing|er)?|"
-    r"mortgage\s*tax|tax\s*servic(?:ing|er)?|property\s*tax|1098|"
-    r"collections|workout|reo|short\s*sale|modification"
+    # Financial Analyst (1–10)
+    r"(?:senior|junior|financial\s*)?financial\s*(?:data|modelling|operations|planning|performance|systems|reporting)?\s*analyst|"
+    # Loan / Credit (11–20)
+    r"(?:senior\s*)?loan\s*analyst|(?:senior\s*)?credit\s*(?:risk\s*)?analyst|"
+    r"loan\s*(?:operations|documentation|processing)\s*analyst|"
+    r"mortgage\s*(?:operations\s*)?analyst|"
+    # Compliance / Risk (21–30)
+    r"(?:senior\s*|regulatory\s*|internal\s*)?compliance\s*(?:analyst|officer)|"
+    r"regulatory\s*(?:compliance|affairs)\s*analyst|"
+    r"(?:senior\s*|portfolio\s*)?risk\s*analyst|audit\s*analyst|"
+    # Operations / MIS (31–40)
+    r"(?:senior\s*)?operations\s*analyst|mis\s*analyst|"
+    r"(?:banking|finance)\s*operations\s*analyst|"
+    r"process\s*(?:improvement\s*)?analyst|quality\s*assurance\s*analyst|"
+    # Process / Management (41–50)
+    r"(?:senior\s*)?process\s*(?:associate|manager)|"
+    r"team\s*lead|operations\s*manager|portfolio\s*manager|"
+    r"relationship\s*manager|account\s*manager|project\s*analyst|document\s*analyst|"
+    # Mortgage / loan core (retained)
+    r"mortgage|home\s*loan|housing\s*loan|loan\s*servic(?:ing|er)?|"
+    r"mortgage\s*underwrit(?:ing|er)?|underwrit(?:ing|er)|"
+    r"mortgage\s*loan\s*(?:originator|officer|processor)|"
+    r"mortgage\s*(?:specialist|associate|consultant|banking|operat(?:ions?|ional)?)|"
+    r"loan\s*(?:officer|originator|processor|admin(?:istrator)?)|"
+    r"process\s*associate|credit\s*pack|document\s*index|"
+    r"escrow|foreclosure|loss\s*mitigation|default\s*servic(?:ing|er)?|"
+    r"mortgage\s*tax|tax\s*servic(?:ing|er)?|property\s*tax|1098"
     r")\b",
     re.IGNORECASE,
 )
@@ -126,17 +196,6 @@ MORTGAGE_COMPANY_HINTS = re.compile(
     re.IGNORECASE,
 )
 
-TITLE_HINTS = re.compile(
-    r"\b("
-    r"mortgage|loan\s*servic|servicing|process\s*associate|mortgage\s*tax|"
-    r"document\s*index|credit\s*pack|loss\s*mitigation|escrow|foreclosure|"
-    r"mortgage\s*operat|mortgage\s*analyst|loan\s*operat|tax\s*servic|"
-    r"default\s*servic|hmda|mers|msr|black\s*knight|wells\s*fargo|"
-    r"underwrit(?:ing|er)|loan\s*officer|loan\s*originator|loan\s*processor|"
-    r"mortgage\s*clos(?:ing|er)?|mortgage\s*specialist|live\s*underwrit"
-    r")\b",
-    re.IGNORECASE,
-)
 
 INDIA_LOCATION_KEYWORDS = [
     "india", "hyderabad", "bangalore", "bengaluru", "chennai", "mumbai", "pune", "delhi",
@@ -191,8 +250,12 @@ def _passes_early_filter(title, company, role_title_pattern):
     return True
 
 
+def _has_mortgage_signal(text):
+    return bool(REQUIRED_MORTGAGE_SIGNAL.search(text))
+
+
 def is_mortgage_tax_job(job):
-    """Accept mortgage role titles / known servicers first; then keyword match."""
+    """50 loan/financial services titles + 100 keywords — generic titles need loan signal."""
     desc = (job.get("description") or "").lower()
     title = (job.get("title") or "").lower()
     company = (job.get("company") or "").lower()
@@ -204,6 +267,15 @@ def is_mortgage_tax_job(job):
     if MORTGAGE_ROLE_TITLE.search(title):
         if BLOCKLIST.search(title) or BLOCKLIST.search(company):
             return False
+        if GENERIC_FINANCE_TITLE.search(title) and not _has_mortgage_signal(blob):
+            return False
+        if not _has_mortgage_signal(blob) and not MORTGAGE_COMPANY_HINTS.search(company):
+            # Loan-specific titles (credit/loan/mortgage/compliance) pass without extra signal
+            if not re.search(
+                r"\b(loan|credit|mortgage|compliance|risk|banking\s*operat|finance\s*operat)\b",
+                title,
+            ):
+                return False
         print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: mortgage role title")
         return True
 
@@ -216,6 +288,8 @@ def is_mortgage_tax_job(job):
     if BLOCKLIST.search(blob):
         return False
     if INDIAN_TAX_BLOCKLIST.search(blob):
+        return False
+    if not _has_mortgage_signal(blob):
         return False
 
     matched = _keyword_hits(blob, MORTGAGE_KEYWORDS)
