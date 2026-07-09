@@ -75,6 +75,23 @@ def _urgency_tag(posted):
     return ""
 
 
+def _format_location(loc):
+    loc = (loc or "India").strip()
+    ll = loc.lower()
+    if "remote" in ll and "(remote)" not in ll and "· remote" not in ll:
+        return loc
+    if "hyderabad" in ll and "hybrid" not in ll and "· hybrid" not in ll:
+        return f"{loc} · Hybrid"
+    return loc
+
+
+def _experience_display(job):
+    exp = (job.get("_experience") or job.get("experience") or "").strip()
+    if exp and exp.lower() not in ("not mentioned", "n/a", ""):
+        return exp
+    return "See job description ↓"
+
+
 def format_job(job):
     title = job.get("title", "")
     company = job.get("company", "")
@@ -82,15 +99,9 @@ def format_job(job):
     url = job.get("url", "")
     posted = job.get("posted", "")
 
-    qual = job.get("_qualification", "Graduate / MBA Finance (preferred)")
-    exp = job.get("_experience", "2-5 Years (US Tax Mortgage)")
-
-    if "remote" in loc.lower():
-        loc_str = f"{loc} (Remote)"
-    elif "hyderabad" in loc.lower():
-        loc_str = "Hyderabad (Hybrid)"
-    else:
-        loc_str = loc
+    qual = job.get("_qualification", "")
+    exp = _experience_display(job)
+    loc_str = _format_location(loc)
 
     lines = []
     urgency = _urgency_tag(posted)
@@ -99,19 +110,21 @@ def format_job(job):
         lines.append("")
 
     lines += [
-        f"🏠 *Job Opportunity at {_escape(company)}*",
-        "",
+        f"🏠 *{_escape(company)}*",
+        f"━━━━━━━━━━━━━━━━━━━━",
         f"💼 *Role:* {_escape(title)}",
         f"📍 *Location:* {_escape(loc_str)}",
     ]
     if exp:
         lines.append(f"👨‍💻 *Experience:* {_escape(exp)}")
+    if qual and qual.lower() not in ("not mentioned", ""):
+        lines.append(f"🎓 *Qualification:* {_escape(qual)}")
 
     posted_str = _format_posted(posted, job.get("fetched_at", ""))
     if posted_str:
         lines.append(f"⏰ *Posted:* {_escape(posted_str)}")
 
-    lines += ["", f"🔗 *Apply Here:*\n{url}"]
+    lines += ["", "🔗 *Apply Here:*", url]
     if job.get("source"):
         lines.append(f"\n📋 _{_escape(job['source'])}_")
 

@@ -13,6 +13,7 @@ if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
 from scraper import fetch_all_jobs, SESSION
 from sender import send_job, send_fail_alert
+from experience_utils import extract_experience_from_job, pick_linkedin_criteria_experience
 
 SEEN_FILE = "seen_jobs.json"
 STATS_FILE = "stats.json"
@@ -122,7 +123,7 @@ MORTGAGE_KEYWORDS = [
 # Loan / mortgage / financial services signal — generic titles need one of these
 REQUIRED_MORTGAGE_SIGNAL = re.compile(
     r"\b("
-    r"mortgage|loan\s|credit\s|loan\s*servic|loan\s*process|loan\s*document|"
+    r"mortgage|(?:\b|\s)loan\b|(?:\b|\s)credit\b|loan\s*servic|loan\s*process|loan\s*document|"
     r"loan\s*lifecycle|loan\s*portfolio|loan\s*underwrit|loan\s*originat|"
     r"credit\s*pack|credit\s*risk|document\s*index|credit\s*analysis|"
     r"wells\s*fargo|black\s*knight|mortgage\s*bank|banking\s*operat|"
@@ -282,8 +283,10 @@ def is_mortgage_tax_job(job):
     if MORTGAGE_COMPANY_HINTS.search(company):
         if BLOCKLIST.search(title) or BLOCKLIST.search(company):
             return False
-        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: mortgage company")
-        return True
+        if MORTGAGE_ROLE_TITLE.search(title) or _has_mortgage_signal(blob):
+            print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: mortgage company")
+            return True
+        return False
 
     if BLOCKLIST.search(blob):
         return False
@@ -435,8 +438,12 @@ def enrich_job(job):
                         or soup.find("section", class_=re.compile(r"description"))
                     )
                     if desc_div:
-                        job["description"] = desc_div.get_text(" ", strip=True)[:2000]
+                        job["description"] = desc_div.get_text(" ", strip=True)[:4000]
                         fetched = True
+                    criteria = soup.find_all("span", class_=re.compile(r"description__job-criteria-text"))
+                    exp_line = pick_linkedin_criteria_experience(criteria)
+                    if exp_line:
+                        job["experience"] = exp_line
     except Exception as e:
         log(f"  [Enrich] error: {e}")
     if fetched:
@@ -444,20 +451,8 @@ def enrich_job(job):
     return job
 
 
-def extract_experience(desc, title):
-    for p in [
-        r"(\d+\+?\s*(?:to|-)\s*\d*\+?\s*years?[^\n.]*)",
-        r"(\d+\+?\s*years?\s*(?:of\s*)?experience[^\n.]*)",
-    ]:
-        m = re.search(p, desc, re.IGNORECASE)
-        if m:
-            return m.group(1).strip()[:100]
-    t = title.lower()
-    if any(x in t for x in ["senior", "manager", "lead"]):
-        return "5+ Years (Mortgage / Loan Servicing)"
-    if any(x in t for x in ["associate", "junior", "jr"]):
-        return "1-3 Years (Mortgage Operations)"
-    return "2-5 Years (US Tax Mortgage)"
+def extract_experience(desc, title="", raw_exp=""):
+    return extract_experience_from_job(desc, raw_exp)
 
 
 def extract_qualification(desc):
@@ -546,7 +541,7 @@ def main():
     for job in new_jobs:
         desc = job.get("description", "")
         title = job.get("title", "")
-        job["_experience"] = extract_experience(desc, title)
+        job["_experience"] = extract_experience(desc, title, job.get("experience", ""))
         job["_qualification"] = extract_qualification(desc)
         if send_job(job):
             seen.add(_dedup_key(job))
