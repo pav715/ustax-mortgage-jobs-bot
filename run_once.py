@@ -93,17 +93,18 @@ MORTGAGE_DOMAIN_KEYWORDS = {
 # Title match — US Mortgage or common mortgage role titles (Telegram post if title fits)
 MORTGAGE_ROLE_TITLE = re.compile(
     r"\b("
+    r"mortgage|"
     r"u\.?\s*s\.?\s*mortgage|us\s*mortgage|"
+    r"loan\s*servic(?:ing|er)?|default\s*servic(?:ing|er)?|"
     r"mortgage\s*underwrit(?:ing|er)?|underwrit(?:ing|er).{0,30}mortgage|"
     r"live\s*underwrit(?:ing|er)?|"
     r"mortgage\s*loan\s*(?:originator|officer|processor|writer|clos(?:ing|er)?)|"
     r"mortgage\s*(?:loan\s*)?(?:processor|writer|clos(?:ing|er)?|specialist|analyst|associate|consultant)|"
     r"mortgage\s*lending\s*assurance|"
     r"mortgage\s*operat(?:ions?|ional)?|"
-    r"loan\s*servic(?:ing|er)?|servicing\s*analyst|"
-    r"loan\s*officer.{0,20}mortgage|mortgage.{0,20}loan\s*officer|"
-    r"loan\s*originator.{0,20}mortgage|mortgage.{0,20}loan\s*originator|"
-    r"loss\s*mitigation|default\s*servic|credit\s*pack|document\s*index|"
+    r"servicing\s*analyst|process\s*associate|"
+    r"loan\s*officer|loan\s*originator|loan\s*processor|"
+    r"loss\s*mitigation|credit\s*pack|document\s*index|"
     r"mortgage\s*tax|tax\s*servic(?:ing|er)?|property\s*tax\s*escrow"
     r")\b",
     re.IGNORECASE,
@@ -178,16 +179,8 @@ def is_mortgage_tax_job(job):
         print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: mortgage role title")
         return True
 
-    # Bare Underwriter / Loan Officer when mortgage context is present
-    if re.search(r"\b(underwriter|loan\s*officer)\b", title) and re.search(r"\bmortgage\b", blob):
-        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: underwriter/loan officer + mortgage")
-        return True
-
     matched = _keyword_hits(blob, MORTGAGE_KEYWORDS)
-    has_domain = any(kw in blob for kw in MORTGAGE_DOMAIN_KEYWORDS)
-    title_ok = bool(TITLE_HINTS.search(title) or TITLE_HINTS.search(company))
-
-    if len(matched) >= 1 and (has_domain or title_ok):
+    if len(matched) >= 1:
         print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: {matched}")
         return True
     return False
