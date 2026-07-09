@@ -4,8 +4,10 @@ import re
 import time
 from datetime import datetime, date, timedelta
 import config
+from telegram_templates import render_job_post
 
 API = f"https://api.telegram.org/bot{config.BOT_TOKEN}"
+BRAND = "mortgage"
 
 
 def _escape(text):
@@ -92,6 +94,15 @@ def _experience_display(job):
     return "See job description ↓"
 
 
+def _posted_today(posted):
+    if not posted:
+        return False
+    try:
+        return (date.today() - date.fromisoformat(str(posted)[:10])).days == 0
+    except Exception:
+        return False
+
+
 def format_job(job):
     title = job.get("title", "")
     company = job.get("company", "")
@@ -102,33 +113,22 @@ def format_job(job):
     qual = job.get("_qualification", "")
     exp = _experience_display(job)
     loc_str = _format_location(loc)
-
-    lines = []
-    urgency = _urgency_tag(posted)
-    if urgency:
-        lines.append(urgency.strip())
-        lines.append("")
-
-    lines += [
-        f"🏠 *{_escape(company)}*",
-        f"━━━━━━━━━━━━━━━━━━━━",
-        f"💼 *Role:* {_escape(title)}",
-        f"📍 *Location:* {_escape(loc_str)}",
-    ]
-    if exp:
-        lines.append(f"👨‍💻 *Experience:* {_escape(exp)}")
-    if qual and qual.lower() not in ("not mentioned", ""):
-        lines.append(f"🎓 *Qualification:* {_escape(qual)}")
-
     posted_str = _format_posted(posted, job.get("fetched_at", ""))
-    if posted_str:
-        lines.append(f"⏰ *Posted:* {_escape(posted_str)}")
 
-    lines += ["", "🔗 *Apply Here:*", url]
-    if job.get("source"):
-        lines.append(f"\n📋 _{_escape(job['source'])}_")
-
-    return "\n".join(lines)
+    return render_job_post(
+        BRAND,
+        job,
+        _escape,
+        company,
+        title,
+        loc_str,
+        exp,
+        qual if qual and qual.lower() not in ("not mentioned", "") else "",
+        posted_str,
+        url,
+        source=job.get("source", ""),
+        posted_today=_posted_today(posted),
+    )
 
 
 def send_job(job):
