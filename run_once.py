@@ -36,7 +36,7 @@ BLOCKLIST = re.compile(
     r"transfer\s*pricing|tax\s*litigation|"
     r"chartered\s*accountant|ca\s*article|ca\s*analyst|"
     r"(?<!us\s)(?<!federal\s)finance\s*analyst(?!\s*us)|accounts\s*analyst|^accountant$|"
-    r"financial\s*analyst(?!\s*(?:us|tax|mortgage))|finance\s*executive|accounts\s*executive|"
+    r"finance\s*executive|accounts\s*executive|"
     r"tax\s*auditor|statutory\s*compliance"
     r")\b",
     re.IGNORECASE,
@@ -66,20 +66,21 @@ INDIAN_TAX_BLOCKLIST = re.compile(
 
 # Resume-aligned: Black Knight (loan lifecycle, doc indexing) + Wells Fargo mortgage ops
 MORTGAGE_KEYWORDS = [
-    "mortgage", "loan servicing", "loan lifecycle", "servicing platform", "black knight",
-    "msp mortgage", "empower loan", "wells fargo", "document indexing", "doc centre",
-    "doc center", "credit pack", "loan documentation", "loss mitigation", "default servicing",
-    "foreclosure", "escrow", "hmda", "fannie mae", "freddie mac", "ginnie mae", "mers",
-    "mortgage servicing", "mortgage operations", "mortgage tax", "property tax escrow",
-    "1098", "mortgage interest", "tax servicing", "msr", "mbs", "remic", "subservicing",
-    "loan number", "production environment", "mis report", "loan origination",
-    "servicer", "mortgage compliance", "mortgage analyst", "process associate",
-    "form 1098", "irs", "real estate tax",
-    "mortgage underwriter", "mortgage underwriting", "us mortgage underwriting",
-    "live underwriting", "mortgage loan originator", "loan officer",
-    "mortgage loan officer", "mortgage loan processor", "mortgage closing",
-    "mortgage specialist", "mortgage lending assurance", "loan processor",
-    "loan writer", "mortgage writer", "underwriting",
+    "mortgage", "home loan", "housing loan", "loan servicing", "loan lifecycle",
+    "servicing platform", "black knight", "msp mortgage", "empower loan", "wells fargo",
+    "document indexing", "doc centre", "doc center", "credit pack", "loan documentation",
+    "loss mitigation", "default servicing", "foreclosure", "escrow", "hmda",
+    "fannie mae", "freddie mac", "ginnie mae", "mers", "mortgage servicing",
+    "mortgage operations", "mortgage tax", "property tax escrow", "1098",
+    "mortgage interest", "tax servicing", "msr", "mbs", "remic", "subservicing",
+    "loan origination", "servicer", "mortgage compliance", "mortgage analyst",
+    "process associate", "form 1098", "real estate tax", "mortgage underwriter",
+    "mortgage underwriting", "live underwriting", "mortgage loan originator",
+    "loan officer", "mortgage loan officer", "mortgage loan processor",
+    "mortgage closing", "mortgage specialist", "loan processor", "underwriter",
+    "post closer", "post-closer", "closing disclosure", "title insurance",
+    "mortgage banking", "loan admin", "loan administrator", "servicing analyst",
+    "collections", "workout", "bankruptcy", "reo", "short sale", "modification",
 ]
 
 MORTGAGE_DOMAIN_KEYWORDS = {
@@ -93,25 +94,37 @@ MORTGAGE_DOMAIN_KEYWORDS = {
 # Title match — US Mortgage or common mortgage role titles (Telegram post if title fits)
 MORTGAGE_ROLE_TITLE = re.compile(
     r"\b("
-    r"mortgage|"
+    r"mortgage|home\s*loan|housing\s*loan|"
     r"u\.?\s*s\.?\s*mortgage|us\s*mortgage|"
-    r"loan\s*servic(?:ing|er)?|default\s*servic(?:ing|er)?|"
-    r"mortgage\s*underwrit(?:ing|er)?|underwrit(?:ing|er).{0,30}mortgage|"
-    r"live\s*underwrit(?:ing|er)?|"
+    r"loan\s*servic(?:ing|er|es)?|default\s*servic(?:ing|er)?|"
+    r"mortgage\s*underwrit(?:ing|er)?|underwrit(?:ing|er)|live\s*underwrit(?:ing|er)?|"
     r"mortgage\s*loan\s*(?:originator|officer|processor|writer|clos(?:ing|er)?)|"
-    r"mortgage\s*(?:loan\s*)?(?:processor|writer|clos(?:ing|er)?|specialist|analyst|associate|consultant)|"
-    r"mortgage\s*lending\s*assurance|"
-    r"mortgage\s*operat(?:ions?|ional)?|"
-    r"servicing\s*analyst|process\s*associate|"
-    r"loan\s*officer|loan\s*originator|loan\s*processor|"
-    r"loss\s*mitigation|credit\s*pack|document\s*index|"
-    r"mortgage\s*tax|tax\s*servic(?:ing|er)?|property\s*tax\s*escrow"
+    r"mortgage\s*(?:loan\s*)?(?:processor|writer|clos(?:ing|er)?|specialist|analyst|associate|consultant|banker|banking)|"
+    r"mortgage\s*lending|mortgage\s*operat(?:ions?|ional)?|"
+    r"servicing\s*analyst|process\s*associate|loan\s*admin(?:istrator)?|"
+    r"loan\s*officer|loan\s*originator|loan\s*processor|loan\s*clos(?:ing|er)?|"
+    r"post[\s-]*clos(?:ing|er)?|loss\s*mitigation|credit\s*pack|document\s*index|"
+    r"escrow|foreclosure|hmda|mers|msr|subservic(?:ing|er)?|"
+    r"mortgage\s*tax|tax\s*servic(?:ing|er)?|property\s*tax|1098|"
+    r"collections|workout|reo|short\s*sale|modification"
     r")\b",
     re.IGNORECASE,
 )
 
-# Legacy alias
-US_MORTGAGE_TITLE = MORTGAGE_ROLE_TITLE
+MORTGAGE_COMPANY_HINTS = re.compile(
+    r"\b("
+    r"wells\s*fargo|black\s*knight|ice\s*mortgage|intercontinental\s*exchange|"
+    r"mr\.?\s*cooper|servicemac|cenlar|loancare|roundpoint|nationstar|"
+    r"pennymac|flagstar|shellpoint|dovenmuehle|phh\s*mortgage|ocwen|"
+    r"caliber\s*home|computershare|fis\s|fidelity\s*national|fnf|"
+    r"rocket\s*mortgage|quicken\s*loans|uwm|united\s*wholesale|"
+    r"loan\s*care|specialized\s*loan|selene|cooper\s*holdings|"
+    r"american\s*home\s*mortgage|freedom\s*mortgage|newrez|"
+    r"maxim\s*capital|dmi\s*mortgage|mortgage\s*connect|"
+    r"docutech|lendsmart|nationwide\s*title|stewart\s*title"
+    r")\b",
+    re.IGNORECASE,
+)
 
 TITLE_HINTS = re.compile(
     r"\b("
@@ -163,21 +176,47 @@ def is_india_location(job):
     return False
 
 
+def _passes_early_filter(title, company, role_title_pattern):
+    """Let clear role-title matches through before generic blocklist."""
+    title_l = (title or "").lower()
+    company_l = (company or "").lower()
+    if INDIAN_TAX_BLOCKLIST.search(title_l) or INDIAN_TAX_BLOCKLIST.search(company_l):
+        return False
+    if role_title_pattern.search(title_l):
+        if BLOCKLIST.search(title_l) or BLOCKLIST.search(company_l):
+            return False
+        return True
+    if BLOCKLIST.search(title_l) or BLOCKLIST.search(company_l):
+        return False
+    return True
+
+
 def is_mortgage_tax_job(job):
-    """Accept mortgage role titles, or 2+ mortgage keywords + domain + title hint."""
+    """Accept mortgage role titles / known servicers first; then keyword match."""
     desc = (job.get("description") or "").lower()
     title = (job.get("title") or "").lower()
     company = (job.get("company") or "").lower()
     blob = f"{title} {company} {desc}"
 
+    if INDIAN_TAX_BLOCKLIST.search(title) or INDIAN_TAX_BLOCKLIST.search(company):
+        return False
+
+    if MORTGAGE_ROLE_TITLE.search(title):
+        if BLOCKLIST.search(title) or BLOCKLIST.search(company):
+            return False
+        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: mortgage role title")
+        return True
+
+    if MORTGAGE_COMPANY_HINTS.search(company):
+        if BLOCKLIST.search(title) or BLOCKLIST.search(company):
+            return False
+        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: mortgage company")
+        return True
+
     if BLOCKLIST.search(blob):
         return False
     if INDIAN_TAX_BLOCKLIST.search(blob):
         return False
-
-    if MORTGAGE_ROLE_TITLE.search(title):
-        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: mortgage role title")
-        return True
 
     matched = _keyword_hits(blob, MORTGAGE_KEYWORDS)
     if len(matched) >= 1:
@@ -385,7 +424,7 @@ def main():
             since_seconds = 2400
     else:
         since_seconds = 2400
-    since_seconds = max(1800, min(since_seconds, 7200))
+    since_seconds = max(3600, min(since_seconds, 7200))
 
     seen = load_seen()
     try:
@@ -408,11 +447,7 @@ def main():
 
     matched_jobs = []
     for job in india_jobs:
-        title = (job.get("title") or "").lower()
-        company = (job.get("company") or "").lower()
-        if BLOCKLIST.search(title) or BLOCKLIST.search(company):
-            continue
-        if INDIAN_TAX_BLOCKLIST.search(title) or INDIAN_TAX_BLOCKLIST.search(company):
+        if not _passes_early_filter(job.get("title"), job.get("company"), MORTGAGE_ROLE_TITLE):
             continue
         job = enrich_job(job)
         if is_mortgage_tax_job(job):
