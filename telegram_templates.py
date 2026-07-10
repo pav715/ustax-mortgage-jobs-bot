@@ -92,21 +92,52 @@ CTAS = [
     "✨ *One click away from your next role ↓*",
 ]
 
-DIVIDERS = [
+COMPANY_DIVIDERS = [
     "----------------------------------------",
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "────────────────────────────────────────",
-    "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬",
-    "┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈",
     "════════════════════════════════════════",
+    "▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰",
+    "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬",
+    "🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹🔹",
+    "✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦",
+    "⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐ ⭐",
+    "💫💫💫💫💫💫💫💫💫💫💫💫💫💫💫💫💫💫💫💫",
+    "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥",
+    "🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟",
+    "⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡",
 ]
 
-COMPANY_PREFIX = ["🏢", "🔥", "🏢", "⭐", "🔥", "💼"]
-ROLE_PREFIX = ["💼", "🎯", "⭐", "💼", "🔥", "🎯"]
+ROLE_DIVIDERS = [
+    "----------------------------------------",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "════════════════════════════════════════",
+    "▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰",
+    "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬",
+    "🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯",
+    "✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨",
+    "👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇",
+    "💼💼💼💼💼💼💼💼💼💼💼💼💼💼💼💼💼💼💼💼",
+    "🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀",
+    "📌📌📌📌📌📌📌📌📌📌📌📌📌📌📌📌📌📌📌📌",
+    "🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆🏆",
+]
+
+COMPANY_PREFIX = ["🏢", "🔥", "⭐", "💼", "🌟", "🏆", "🔹", "✨"]
+ROLE_PREFIX = ["💼", "🎯", "⭐", "🔥", "✨", "🚀", "💫", "📌"]
 
 
 def _boxed(divider, middle_line):
     return [divider, middle_line, divider]
+
+
+def _pick_idx(job, n, salt):
+    key = f"{job.get('title', '')}|{job.get('company', '')}|{salt}"
+    return int(hashlib.md5(key.encode()).hexdigest(), 16) % n
+
+
+def _pick_divider(job, pool, salt):
+    idx = _pick_idx(job, len(pool), salt)
+    return pool[idx]
 
 
 def _ist_hour():
@@ -128,8 +159,7 @@ def _pick(pool, job, salt=""):
 
 
 def _layout_idx(job):
-    key = f"{job.get('title', '')}|{job.get('company', '')}|layout"
-    return int(hashlib.md5(key.encode()).hexdigest(), 16) % 6
+    return _pick_idx(job, 3, "layout")
 
 
 def render_job_post(
@@ -151,16 +181,19 @@ def render_job_post(
     hook = _pick(HOOKS.get(_theme_slot(), HOOKS["default"]), job, "hook")
     cta = _pick(CTAS, job, "cta")
     layout = _layout_idx(job)
-    divider = DIVIDERS[layout]
-    co_prefix = COMPANY_PREFIX[layout]
-    role_prefix = ROLE_PREFIX[layout]
+    co_div = _pick_divider(job, COMPANY_DIVIDERS, "co_div")
+    role_div = _pick_divider(job, ROLE_DIVIDERS, "role_div")
+    if co_div == role_div:
+        role_div = ROLE_DIVIDERS[(_pick_idx(job, len(ROLE_DIVIDERS), "role_div") + 1) % len(ROLE_DIVIDERS)]
+    co_prefix = COMPANY_PREFIX[_pick_idx(job, len(COMPANY_PREFIX), "co_pre")]
+    role_prefix = ROLE_PREFIX[_pick_idx(job, len(ROLE_PREFIX), "role_pre")]
 
     co, ti, lo = escape(company), escape(title), escape(location)
     ex = escape(experience) if experience else ""
     ps = escape(posted_str) if posted_str else ""
 
-    company_box = _boxed(divider, f"{co_prefix} Company name : *{co}*")
-    role_box = _boxed(divider, f"{role_prefix} Role : *{ti}*")
+    company_box = _boxed(co_div, f"{co_prefix} Company name : *{co}*")
+    role_box = _boxed(role_div, f"{role_prefix} Role : *{ti}*")
     loc_line = f"📍 Location : *{lo}*"
 
     extras = []
@@ -177,24 +210,17 @@ def render_job_post(
         apply += f"\n\n📋 _via {escape(source)}_"
 
     parts = [hook, ""]
+    if layout == 1:
+        parts.extend([f"{brand['icon']} {brand['spark']}", ""])
     parts.extend(company_box)
-    parts.append("")
+    if layout == 2:
+        parts.extend(["", f"📢 *{co}* is hiring!", ""])
+    else:
+        parts.append("")
     parts.extend(role_box)
-    parts.append("")
-    parts.append(loc_line)
+    parts.extend(["", loc_line])
     if extra_block:
         parts.extend(["", extra_block])
     parts.append(apply)
-
-    if layout == 1:
-        parts = [hook, "", f"{brand['icon']} {brand['spark']}", ""] + company_box + ["", ""] + role_box + ["", loc_line]
-        if extra_block:
-            parts.extend(["", extra_block])
-        parts.append(apply)
-    elif layout == 2:
-        parts = [hook, ""] + company_box + ["", f"📢 *{co}* is hiring!", ""] + role_box + ["", loc_line]
-        if extra_block:
-            parts.extend(["", extra_block])
-        parts.append(apply)
 
     return "\n".join(x for x in parts if x is not None)
