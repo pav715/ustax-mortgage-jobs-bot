@@ -101,14 +101,12 @@ DIVIDERS = [
     "════════════════════════════════════════",
 ]
 
-COMPANY_LINES = [
-    "🏢 Company name : *{co}*",
-    "🔥 Company name : *{co}*",
-    "Company name : *{co}*",
-    "🏢 *Company name : {co}*",
-    "🔥 *Company name : {co}*",
-    "*Company name : {co}*",
-]
+COMPANY_PREFIX = ["🏢", "🔥", "🏢", "⭐", "🔥", "💼"]
+ROLE_PREFIX = ["💼", "🎯", "⭐", "💼", "🔥", "🎯"]
+
+
+def _boxed(divider, middle_line):
+    return [divider, middle_line, divider]
 
 
 def _ist_hour():
@@ -154,50 +152,49 @@ def render_job_post(
     cta = _pick(CTAS, job, "cta")
     layout = _layout_idx(job)
     divider = DIVIDERS[layout]
-    company_line = COMPANY_LINES[layout].format(co=escape(company))
+    co_prefix = COMPANY_PREFIX[layout]
+    role_prefix = ROLE_PREFIX[layout]
 
     co, ti, lo = escape(company), escape(title), escape(location)
     ex = escape(experience) if experience else ""
     ps = escape(posted_str) if posted_str else ""
 
-    role_line = f"💼 Role : *{ti}*"
+    company_box = _boxed(divider, f"{co_prefix} Company name : *{co}*")
+    role_box = _boxed(divider, f"{role_prefix} Role : *{ti}*")
     loc_line = f"📍 Location : *{lo}*"
 
-    details = [role_line, "", loc_line]
+    extras = []
     if ex:
-        details += ["", f"👨‍💻 Experience : {ex}"]
+        extras.append(f"👨‍💻 Experience : {ex}")
     if ps:
-        details += ["", f"⏰ Posted : {ps}"]
+        extras.append(f"⏰ Posted : {ps}")
     if salary and salary.lower() not in ("not mentioned", ""):
-        details += ["", f"💰 Salary : {escape(salary)}"]
+        extras.append(f"💰 Salary : {escape(salary)}")
+    extra_block = "\n\n".join(extras) if extras else ""
 
     apply = f"\n\n{cta}\n\n🔗 {url}"
     if source:
         apply += f"\n\n📋 _via {escape(source)}_"
 
-    if layout == 0:
-        body = [hook, "", company_line, divider, ""] + details + [apply]
-    elif layout == 1:
-        body = [hook, "", f"{brand['icon']} {brand['spark']}", company_line, divider, ""] + details + [apply]
-    elif layout == 2:
-        body = [hook, "", company_line, divider, "", f"📢 *{co}* is hiring!", ""] + details + [apply]
-    elif layout == 3:
-        body = [hook, "", company_line, divider, "", role_line, "", loc_line]
-        if ex:
-            body += ["", f"👨‍💻 Experience : {ex}"]
-        if ps:
-            body += ["", f"⏰ Posted : {ps}"]
-        if salary and salary.lower() not in ("not mentioned", ""):
-            body += ["", f"💰 Salary : {escape(salary)}"]
-        body.append(apply)
-    elif layout == 4:
-        body = [hook, "", company_line, divider, "", f"💼 Role : *{ti}*  ·  📍 *{lo}*"]
-        if ex:
-            body += ["", f"👨‍💻 Experience : {ex}"]
-        if ps:
-            body += ["", f"⏰ Posted : {ps}"]
-        body.append(apply)
-    else:
-        body = [hook, "", company_line, divider, ""] + details + [apply]
+    parts = [hook, ""]
+    parts.extend(company_box)
+    parts.append("")
+    parts.extend(role_box)
+    parts.append("")
+    parts.append(loc_line)
+    if extra_block:
+        parts.extend(["", extra_block])
+    parts.append(apply)
 
-    return "\n".join(x for x in body if x is not None)
+    if layout == 1:
+        parts = [hook, "", f"{brand['icon']} {brand['spark']}", ""] + company_box + ["", ""] + role_box + ["", loc_line]
+        if extra_block:
+            parts.extend(["", extra_block])
+        parts.append(apply)
+    elif layout == 2:
+        parts = [hook, ""] + company_box + ["", f"📢 *{co}* is hiring!", ""] + role_box + ["", loc_line]
+        if extra_block:
+            parts.extend(["", extra_block])
+        parts.append(apply)
+
+    return "\n".join(x for x in parts if x is not None)
