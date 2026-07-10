@@ -140,40 +140,19 @@ def render_job_post(
     if source:
         apply += f"\n\n_via {escape(source)}_"
 
-    # Flow: creative note (with company) → company block → role → details
+    details = [
+        f"Company : *{co}*",
+        f"Role       : *{ti}*",
+        f"Location : {lo}",
+    ]
+    if meta_line:
+        details.append(f"_{meta_line}_")
+
     if layout == 0:
-        body = [
-            hook, "",
-            line,
-            f"🏢  *{co}*",
-            f"💼  *{ti}*",
-            f"📍  {lo}",
-        ]
-        if meta_line:
-            body.append(f"_{meta_line}_")
-        body.extend([line, apply])
-
+        body = [hook, "", line] + details + [line, apply]
     elif layout == 1:
-        body = [
-            hook, "",
-            f"🏢  Company : *{co}*",
-            f"💼  Role       : *{ti}*",
-            f"📍  Location : {lo}",
-        ]
-        if meta_line:
-            body.append(f"_{meta_line}_")
-        body.extend(["", apply])
-
+        body = [hook, ""] + details + ["", apply]
     else:
-        body = [
-            hook, "",
-            f"🏢  *{co}*",
-            "",
-            f"💼  Role : *{ti}*",
-            f"📍  {lo}",
-        ]
-        if meta_line:
-            body.append(f"_{meta_line}_")
-        body.extend(["", apply])
+        body = [hook, "", line] + details + ["", apply]
 
     return "\n".join(body)
