@@ -1,21 +1,21 @@
-"""Creative Telegram job posts — time-of-day hooks, funny openers, rotating layouts."""
+"""Creative Telegram job posts — hook first, clean labels, rotating layouts."""
 import hashlib
 from datetime import datetime, timedelta
 
 IST = timedelta(hours=5, minutes=30)
 
 BRANDS = {
-    "tax": {"label": "US Tax Jobs", "icon": "💼", "spark": "🇺🇸", "tag": "tax"},
-    "testing": {"label": "Tax Software QA", "icon": "🧪", "spark": "⚗️", "tag": "QA"},
-    "mortgage": {"label": "Mortgage & Loan", "icon": "🏠", "spark": "🏦", "tag": "loan"},
+    "tax": {"label": "US Tax Jobs", "icon": "💼", "spark": "🇺🇸"},
+    "testing": {"label": "Tax Software QA", "icon": "🧪", "spark": "⚗️"},
+    "mortgage": {"label": "Mortgage & Loan", "icon": "🏠", "spark": "🏦"},
 }
 
 TIME_SLOTS = [
-    (8, 11, "morning", "╭━━ 🌞 MORNING DROP 🌞 ━━╮"),
-    (12, 15, "afternoon", "▰▰▰ 🔥 HOT JOB 🔥 ▰▰▰"),
-    (16, 18, "late_afternoon", "━━ ⚡ FRESH OPENING ⚡ ━━"),
-    (19, 21, "evening", "✦ ─── ✦ ─── ✦ ─── ✦"),
-    (22, 23, "night", "◇ ─── ◇ ─── ◇ ─── ◇"),
+    (8, 11, "morning"),
+    (12, 15, "afternoon"),
+    (16, 18, "late_afternoon"),
+    (19, 21, "evening"),
+    (22, 23, "night"),
 ]
 
 HOOKS = {
@@ -92,23 +92,46 @@ CTAS = [
     "✨ *One click away from your next role ↓*",
 ]
 
+DIVIDERS = [
+    "----------------------------------------",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "────────────────────────────────────────",
+    "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬",
+    "┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈",
+    "════════════════════════════════════════",
+]
+
+COMPANY_LINES = [
+    "🏢 Company name : *{co}*",
+    "🔥 Company name : *{co}*",
+    "Company name : *{co}*",
+    "🏢 *Company name : {co}*",
+    "🔥 *Company name : {co}*",
+    "*Company name : {co}*",
+]
+
 
 def _ist_hour():
     return (datetime.utcnow() + IST).hour
 
 
-def _theme():
+def _theme_slot():
     h = _ist_hour()
-    for start, end, slot, divider in TIME_SLOTS:
+    for start, end, slot in TIME_SLOTS:
         if start <= h <= end:
-            return {"slot": slot, "divider": divider}
-    return {"slot": "default", "divider": "━━━━━━━━━━━━━━━━━━━━"}
+            return slot
+    return "default"
 
 
 def _pick(pool, job, salt=""):
     key = f"{job.get('title', '')}|{job.get('company', '')}|{_ist_hour()}|{salt}"
     idx = int(hashlib.md5(key.encode()).hexdigest(), 16) % len(pool)
     return pool[idx]
+
+
+def _layout_idx(job):
+    key = f"{job.get('title', '')}|{job.get('company', '')}|layout"
+    return int(hashlib.md5(key.encode()).hexdigest(), 16) % 6
 
 
 def render_job_post(
@@ -127,50 +150,54 @@ def render_job_post(
     salary="",
 ):
     brand = BRANDS[brand_key]
-    theme = _theme()
-    slot = theme["slot"]
-    hooks = HOOKS.get(slot, HOOKS["default"])
-    hook = _pick(hooks, job, "hook")
+    hook = _pick(HOOKS.get(_theme_slot(), HOOKS["default"]), job, "hook")
     cta = _pick(CTAS, job, "cta")
-    layout = int(hashlib.md5(
-        f"{job.get('title', '')}|{job.get('company', '')}|layout".encode()
-    ).hexdigest(), 16) % 6
+    layout = _layout_idx(job)
+    divider = DIVIDERS[layout]
+    company_line = COMPANY_LINES[layout].format(co=escape(company))
 
     co, ti, lo = escape(company), escape(title), escape(location)
     ex = escape(experience) if experience else ""
-    qu = escape(qualification) if qualification else ""
     ps = escape(posted_str) if posted_str else ""
 
-    extras = []
-    if ex:
-        extras.append(f"👨‍💻 *Experience:* {ex}")
-    if qu:
-        extras.append(f"🎓 *Qualification:* {qu}")
-    if ps:
-        extras.append(f"⏰ *Posted:* {ps}")
-    if salary and salary.lower() not in ("not mentioned", ""):
-        extras.append(f"💰 *Salary:* {escape(salary)}")
-    extra = "\n".join(extras)
+    role_line = f"💼 Role : *{ti}*"
+    loc_line = f"📍 Location : *{lo}*"
 
-    urgent = "🚨 *Posted TODAY — apply fast!* 🚨" if posted_today else ""
-    company_block = f"🔥🔥 *{co}* 🔥🔥"
-    role = f"💼 *Role:*\n*{ti}*"
-    loc = f"📍 *Location:*\n*{lo}*"
-    apply = f"\n{cta}\n\n🔗 {url}"
+    details = [role_line, "", loc_line]
+    if ex:
+        details += ["", f"👨‍💻 Experience : {ex}"]
+    if ps:
+        details += ["", f"⏰ Posted : {ps}"]
+    if salary and salary.lower() not in ("not mentioned", ""):
+        details += ["", f"💰 Salary : {escape(salary)}"]
+
+    apply = f"\n\n{cta}\n\n🔗 {url}"
     if source:
         apply += f"\n\n📋 _via {escape(source)}_"
 
     if layout == 0:
-        body = [hook, urgent, "", company_block, theme["divider"], role, loc, extra, apply]
+        body = [hook, "", company_line, divider, ""] + details + [apply]
     elif layout == 1:
-        body = [hook, urgent, f"{brand['icon']} {brand['spark']}", company_block, role.replace("💼", "🎯"), loc, extra, apply]
+        body = [hook, "", f"{brand['icon']} {brand['spark']}", company_line, divider, ""] + details + [apply]
     elif layout == 2:
-        body = [hook, urgent, theme["divider"], company_block, f"▸ *Role* → *{ti}*", f"▸ *Location* → *{lo}*", extra, apply]
+        body = [hook, "", company_line, divider, "", f"📢 *{co}* is hiring!", ""] + details + [apply]
     elif layout == 3:
-        body = [hook, urgent, f"🏢 *{co}* {brand['spark']}🔥", "┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈", f"💼 *{ti}*", f"📍 *{lo}*", extra, apply]
+        body = [hook, "", company_line, divider, "", role_line, "", loc_line]
+        if ex:
+            body += ["", f"👨‍💻 Experience : {ex}"]
+        if ps:
+            body += ["", f"⏰ Posted : {ps}"]
+        if salary and salary.lower() not in ("not mentioned", ""):
+            body += ["", f"💰 Salary : {escape(salary)}"]
+        body.append(apply)
     elif layout == 4:
-        body = [hook, urgent, f"📢 *{co}* wants someone like you!", theme["divider"], role, loc, extra, apply]
+        body = [hook, "", company_line, divider, "", f"💼 Role : *{ti}*  ·  📍 *{lo}*"]
+        if ex:
+            body += ["", f"👨‍💻 Experience : {ex}"]
+        if ps:
+            body += ["", f"⏰ Posted : {ps}"]
+        body.append(apply)
     else:
-        body = [hook, urgent, company_block, theme["divider"], role, loc, extra, apply]
+        body = [hook, "", company_line, divider, ""] + details + [apply]
 
-    return "\n".join(x for x in body if x)
+    return "\n".join(x for x in body if x is not None)

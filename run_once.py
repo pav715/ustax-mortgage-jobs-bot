@@ -363,10 +363,31 @@ def log(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 
 
-def _dedup_key(job):
-    title = (job.get("title") or "").lower().strip()
-    company = (job.get("company") or "").lower().strip()
-    return f"{title}|{company}"
+def _norm_dedup_text(s):
+    s = (s or "").lower().strip()
+    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"[^\w\s&]", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _dedup_keys(job):
+    title = _norm_dedup_text(job.get("title"))
+    company = _norm_dedup_text(job.get("company"))
+    keys = {f"{title}|{company}"}
+    url = job.get("url") or ""
+    m = re.search(r"/(\d{8,})", url)
+    if m:
+        keys.add(f"lid:{m.group(1)}")
+    return keys
+
+
+def _is_seen(job, seen):
+    return any(k in seen for k in _dedup_keys(job))
+
+
+def _mark_seen(job, seen):
+    for k in _dedup_keys(job):
+        seen.add(k)
 
 
 def handle_commands(state, stats):
@@ -505,7 +526,7 @@ def main():
 
     if os.environ.get("SEED_MODE", "").lower() == "true":
         for job in jobs:
-            seen.add(_dedup_key(job))
+            _mark_seen(job, seen)
         save_seen(seen)
         _mark_run_complete(state)
         log(f"Seed mode: marked {len(jobs)} jobs as seen.")
@@ -524,7 +545,7 @@ def main():
 
     log(f"Mortgage/Tax relevant: {len(matched_jobs)}")
 
-    new_jobs = [j for j in matched_jobs if _dedup_key(j) not in seen]
+    new_jobs = [j for j in matched_jobs if not _is_seen(j, seen)]
     new_jobs.sort(key=lambda j: str(j.get("posted") or j.get("fetched_at") or ""))
 
     if not new_jobs:
@@ -544,7 +565,7 @@ def main():
         job["_experience"] = extract_experience(desc, title, job.get("experience", ""))
         job["_qualification"] = extract_qualification(desc)
         if send_job(job):
-            seen.add(_dedup_key(job))
+            _mark_seen(job, seen)
             sent += 1
             stats["sent"] += 1
             co = job.get("company", "Other")
