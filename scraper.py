@@ -1,4 +1,4 @@
-"""Multi-source job scraper — LinkedIn, Naukri, Indeed."""
+"""Multi-source job scraper — LinkedIn, Naukri (v2), Shine, Indeed."""
 import hashlib
 import re
 import time
@@ -25,9 +25,13 @@ NAUKRI_HEADERS = {
     "User-Agent": SESSION.headers["User-Agent"],
     "appid": "109",
     "systemid": "109",
+    "Accept": "application/json",
 }
 
 PORTAL_KEYWORD_LIMIT = 12
+PORTAL_LOCATION_LIMIT = 6
+NAUKRI_JOBS_PER_SEARCH = 8
+_INDEED_BLOCKED = False
 
 
 def _job_id(url, title, company):
@@ -37,6 +41,12 @@ def _job_id(url, title, company):
 
 def _delay():
     time.sleep(random.uniform(0.6, 1.2))
+
+
+def _strip_html(text):
+    if not text:
+        return ""
+    return BeautifulSoup(str(text), "html.parser").get_text(" ", strip=True)
 
 
 def _make_job(title, company, location, url, posted="", source="LinkedIn", description=""):
@@ -96,56 +106,126 @@ def scrape_linkedin(keyword, location, since_seconds=86400):
     return jobs
 
 
+def _naukri_fetch_job(job_id):
+    """Fetch single job via Naukri v2 API (v3 blocked by recaptcha)."""
+    try:
+        r = requests.get(
+            f"https://www.naukri.com/jobapi/v2/job/{job_id}",
+            headers=NAUKRI_HEADERS,
+            timeout=12,
+        )
+        if r.status_code != 200:
+            return None
+        j = r.json().get("job") or {}
+        title = (j.get("post") or "").strip()
+        company = (j.get("companyName") or j.get("CONTCOM") or "").strip()
+        path = (j.get("job_static_url") or "").strip()
+        if not title or not path:
+            return None
+        jurl = path if path.startswith("http") else f"https://www.naukri.com{path}"
+        desc = _strip_html(j.get("jobDesc", ""))
+        loc_str = _strip_html(j.get("cityfield", "")) or ""
+        if loc_str:
+            loc_str = re.sub(r"\s+", " ", loc_str).strip()[:120]
+        min_exp = j.get("minExp")
+        max_exp = j.get("maxExp")
+        exp = ""
+        if min_exp is not None and max_exp is not None:
+            exp = f"{min_exp}-{max_exp} Years"
+        elif min_exp is not None:
+            exp = f"{min_exp}+ Years"
+        job = _make_job(title, company, loc_str or "", jurl, "", "Naukri", desc)
+        if exp:
+            job["experience"] = exp
+        return job
+    except Exception:
+        return None
+
+
 def scrape_naukri(keyword, location):
+    """Naukri v2: search for IDs, then fetch each job (v3 API requires recaptcha)."""
     jobs = []
     try:
-        kw = quote(keyword)
-        loc = quote(location)
         url = (
-            f"https://www.naukri.com/jobapi/v3/search?"
+            f"https://www.naukri.com/jobapi/v2/search?"
             f"noOfResults=20&urlType=search_by_keyword&searchType=adv"
-            f"&keyword={kw}&location={loc}&jobAge=3&src=jobsearchDesk&latLong="
+            f"&keyword={quote(keyword)}&location={quote(location)}"
+            f"&jobAge=7&src=jobsearchDesk&latLong="
         )
         r = requests.get(url, headers=NAUKRI_HEADERS, timeout=12)
         if r.status_code != 200:
             print(f"  [Naukri] HTTP {r.status_code} — '{keyword}' / {location}")
             return jobs
-        for j in r.json().get("jobDetails", []):
-            title = (j.get("title") or "").strip()
-            company = (j.get("companyName") or "").strip()
-            jurl = j.get("jdURL", "")
-            if jurl and not jurl.startswith("http"):
-                jurl = f"https://www.naukri.com{jurl}"
-            posted = j.get("footerPlaceholderLabel", "") or j.get("createdDate", "")
-            desc_parts = [
-                j.get("jobDesc", ""),
-                j.get("jobHighlight", ""),
-                " ".join(j.get("tagsAndHighlights", {}).get("highlights", [])),
-                j.get("experienceText", ""),
-            ]
-            desc = " ".join(str(p) for p in desc_parts if p)
-            exp = (j.get("experienceText") or "").strip()
-            loc_str = (j.get("placeholders") or [{}])[0].get("label", location) if j.get("placeholders") else location
-            if title and jurl:
-                job = _make_job(title, company, loc_str or location, jurl, posted, "Naukri", desc)
-                if exp:
-                    job["experience"] = exp
+        job_ids = (r.json().get("srpJobIds") or [])[:NAUKRI_JOBS_PER_SEARCH]
+        for jid in job_ids:
+            job = _naukri_fetch_job(jid)
+            if job:
+                if not job.get("location"):
+                    job["location"] = location
                 jobs.append(job)
+            time.sleep(0.3)
     except Exception as e:
         print(f"  [Naukri] Error ({keyword}/{location}): {e}")
     print(f"  [Naukri] '{keyword}' / {location} — {len(jobs)} jobs")
     return jobs
 
 
+def scrape_shine(keyword, location):
+    jobs = []
+    try:
+        loc_slug = location.lower().replace(" ", "-")
+        url = (
+            f"https://www.shine.com/api/v2/search/simple/"
+            f"?q={quote(keyword)}&loc={quote(loc_slug)}"
+        )
+        r = requests.get(url, headers={"User-Agent": SESSION.headers["User-Agent"]}, timeout=12)
+        if r.status_code != 200:
+            print(f"  [Shine] HTTP {r.status_code} — '{keyword}' / {location}")
+            return jobs
+        for j in r.json().get("results", [])[:15]:
+            title = (j.get("jJT") or "").strip()
+            company = (j.get("jCName") or "").strip()
+            slug = (j.get("jSlug") or "").strip()
+            if not title or not slug:
+                continue
+            jurl = f"https://www.shine.com/jobs/{slug}"
+            desc = _strip_html(j.get("jJD") or j.get("jJDT") or "")
+            locs = j.get("jLoc") or [location]
+            loc_str = locs[0] if isinstance(locs, list) and locs else location
+            posted = (j.get("jPDate") or "")[:10]
+            exp = (j.get("jExp") or "").strip()
+            job = _make_job(title, company, loc_str, jurl, posted, "Shine", desc)
+            if exp:
+                job["experience"] = exp
+            jobs.append(job)
+    except Exception as e:
+        print(f"  [Shine] Error ({keyword}/{location}): {e}")
+    print(f"  [Shine] '{keyword}' / {location} — {len(jobs)} jobs")
+    return jobs
+
+
 def scrape_indeed(keyword, location):
+    global _INDEED_BLOCKED
+    if _INDEED_BLOCKED:
+        return []
     jobs = []
     try:
         kw = quote(keyword.replace(" ", "+"))
         loc = quote(location.replace(" ", "+"))
-        url = f"https://in.indeed.com/rss?q={kw}&l={loc}&sort=date&fromage=3"
-        r = requests.get(url, headers={"User-Agent": SESSION.headers["User-Agent"]}, timeout=12)
-        if r.status_code != 200:
-            print(f"  [Indeed] HTTP {r.status_code} — '{keyword}' / {location}")
+        url = f"https://in.indeed.com/rss?q={kw}&l={loc}&sort=date&fromage=7"
+        r = requests.get(
+            url,
+            headers={
+                "User-Agent": SESSION.headers["User-Agent"],
+                "Accept": "application/rss+xml, application/xml, text/xml, */*",
+            },
+            timeout=12,
+        )
+        if r.status_code != 200 or "<rss" not in r.text[:500].lower():
+            print(f"  [Indeed] HTTP {r.status_code} (blocked) — '{keyword}' / {location}")
+            if r.status_code in (403, 429):
+                _INDEED_BLOCKED = True
+                print("  [Indeed] Skipping remaining Indeed calls this cycle (bot block).")
             return jobs
         soup = BeautifulSoup(r.content, "xml")
         for item in soup.find_all("item")[:15]:
@@ -170,6 +250,8 @@ def _portal_keywords():
 
 
 def fetch_all_jobs(since_seconds=86400):
+    global _INDEED_BLOCKED
+    _INDEED_BLOCKED = False
     all_jobs = []
     seen = set()
 
@@ -187,18 +269,30 @@ def fetch_all_jobs(since_seconds=86400):
             _delay()
 
     portal_kws = _portal_keywords()
-    print(f"\n[Naukri] Scanning top {len(portal_kws)} keywords...")
+    portal_locs = config.LOCATIONS[:PORTAL_LOCATION_LIMIT]
+
+    print(f"\n[Naukri] Scanning top {len(portal_kws)} keywords (v2 API)...")
     for kw in portal_kws:
-        for loc in config.LOCATIONS[:6]:
+        for loc in portal_locs:
             _add(scrape_naukri(kw, loc))
+            _delay()
+
+    print(f"\n[Shine] Scanning top {len(portal_kws)} keywords...")
+    for kw in portal_kws:
+        for loc in portal_locs:
+            _add(scrape_shine(kw, loc))
             _delay()
 
     print(f"\n[Indeed] Scanning top {len(portal_kws)} keywords...")
     for kw in portal_kws:
-        for loc in config.LOCATIONS[:6]:
+        for loc in portal_locs:
             _add(scrape_indeed(kw, loc))
+            if _INDEED_BLOCKED:
+                break
             _delay()
+        if _INDEED_BLOCKED:
+            break
 
     all_jobs.sort(key=lambda j: j.get("posted") or j.get("fetched_at") or "", reverse=True)
-    print(f"\n  Total unique jobs (LinkedIn + Naukri + Indeed): {len(all_jobs)}")
+    print(f"\n  Total unique jobs: {len(all_jobs)}")
     return all_jobs
