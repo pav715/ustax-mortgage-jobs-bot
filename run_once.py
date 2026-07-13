@@ -118,6 +118,18 @@ MORTGAGE_KEYWORDS = [
     "finance operations analyst", "process associate", "senior process associate",
     "process manager", "team lead", "operations manager", "portfolio manager",
     "relationship manager", "account manager", "project analyst", "document analyst",
+    # Expanded mortgage / loan titles
+    "mortgage underwriter", "mortgage loan officer", "mortgage closer", "mortgage post closer",
+    "escrow analyst", "foreclosure analyst", "loss mitigation analyst", "default servicing analyst",
+    "hmda analyst", "msr analyst", "home loan analyst", "housing loan analyst",
+    "loan origination analyst", "commercial loan analyst", "consumer loan analyst",
+    "credit pack analyst", "credit policy analyst", "mortgage quality analyst",
+    "mortgage document analyst", "mortgage risk analyst", "regulatory reporting analyst",
+    "aml analyst", "kyc analyst", "sox compliance analyst", "workflow analyst",
+    "document indexing analyst", "credit pack indexing", "loan servicing specialist",
+    "mortgage servicing specialist", "servicing analyst", "reo analyst", "collection analyst mortgage",
+    "fannie mae analyst", "freddie mac analyst", "subservicing analyst", "mers analyst",
+    "property tax escrow analyst", "1098 analyst", "mortgage tax analyst",
 ]
 
 # Loan / mortgage / financial services signal — generic titles need one of these
@@ -129,7 +141,10 @@ REQUIRED_MORTGAGE_SIGNAL = re.compile(
     r"wells\s*fargo|black\s*knight|mortgage\s*bank|banking\s*operat|"
     r"financial\s*services|loan\s*management|servicing|delinquency|"
     r"escrow|foreclosure|mortgage\s*operat|regulatory\s*compliance|"
-    r"compliance\s*monitor|risk\s*management|portfolio\s*risk"
+    r"compliance\s*monitor|risk\s*management|portfolio\s*risk|"
+    r"hmda|msr|mers|fannie\s*mae|freddie\s*mac|subservic|reo|"
+    r"mortgage\s*clos|loan\s*clos|escrow|foreclosure|loss\s*mitigation|"
+    r"aml|kyc|sox|regulatory\s*reporting|home\s*loan|housing\s*loan"
     r")\b",
     re.IGNORECASE,
 )
@@ -177,7 +192,11 @@ MORTGAGE_ROLE_TITLE = re.compile(
     r"loan\s*(?:officer|originator|processor|admin(?:istrator)?)|"
     r"process\s*associate|credit\s*pack|document\s*index|"
     r"escrow|foreclosure|loss\s*mitigation|default\s*servic(?:ing|er)?|"
-    r"mortgage\s*tax|tax\s*servic(?:ing|er)?|property\s*tax|1098"
+    r"mortgage\s*tax|tax\s*servic(?:ing|er)?|property\s*tax|1098|"
+    r"mortgage\s*(?:closer|post\s*closer|underwrit(?:er|ing)?|loan\s*officer|quality)|"
+    r"home\s*loan|housing\s*loan|hmda|msr|mers|reo|subservic|"
+    r"fannie\s*mae|freddie\s*mac|loan\s*originat|commercial\s*loan|consumer\s*loan|"
+    r"aml|kyc|sox\s*compliance|regulatory\s*reporting|servicing\s*analyst"
     r")\b",
     re.IGNORECASE,
 )
@@ -192,7 +211,9 @@ MORTGAGE_COMPANY_HINTS = re.compile(
     r"loan\s*care|specialized\s*loan|selene|cooper\s*holdings|"
     r"american\s*home\s*mortgage|freedom\s*mortgage|newrez|"
     r"maxim\s*capital|dmi\s*mortgage|mortgage\s*connect|"
-    r"docutech|lendsmart|nationwide\s*title|stewart\s*title"
+    r"docutech|lendsmart|nationwide\s*title|stewart\s*title|"
+    r"cenlar|loancare|mr\.?\s*cooper|servicemac|rocket\s*mortgage|"
+    r"pennymac|flagstar|newrez|freedom\s*mortgage|uwm|quicken\s*loans"
     r")\b",
     re.IGNORECASE,
 )
