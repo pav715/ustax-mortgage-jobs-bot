@@ -1,4 +1,4 @@
-"""Multi-source job scraper — LinkedIn, Naukri (v2), Shine, Indeed."""
+"""Multi-source job scraper — LinkedIn, Naukri (v2), Indeed."""
 import hashlib
 import re
 import time
@@ -170,40 +170,6 @@ def scrape_naukri(keyword, location):
     return jobs
 
 
-def scrape_shine(keyword, location):
-    jobs = []
-    try:
-        loc_slug = location.lower().replace(" ", "-")
-        url = (
-            f"https://www.shine.com/api/v2/search/simple/"
-            f"?q={quote(keyword)}&loc={quote(loc_slug)}"
-        )
-        r = requests.get(url, headers={"User-Agent": SESSION.headers["User-Agent"]}, timeout=12)
-        if r.status_code != 200:
-            print(f"  [Shine] HTTP {r.status_code} — '{keyword}' / {location}")
-            return jobs
-        for j in r.json().get("results", [])[:15]:
-            title = (j.get("jJT") or "").strip()
-            company = (j.get("jCName") or "").strip()
-            slug = (j.get("jSlug") or "").strip()
-            if not title or not slug:
-                continue
-            jurl = f"https://www.shine.com/jobs/{slug}"
-            desc = _strip_html(j.get("jJD") or j.get("jJDT") or "")
-            locs = j.get("jLoc") or [location]
-            loc_str = locs[0] if isinstance(locs, list) and locs else location
-            posted = (j.get("jPDate") or "")[:10]
-            exp = (j.get("jExp") or "").strip()
-            job = _make_job(title, company, loc_str, jurl, posted, "Shine", desc)
-            if exp:
-                job["experience"] = exp
-            jobs.append(job)
-    except Exception as e:
-        print(f"  [Shine] Error ({keyword}/{location}): {e}")
-    print(f"  [Shine] '{keyword}' / {location} — {len(jobs)} jobs")
-    return jobs
-
-
 def scrape_indeed(keyword, location):
     global _INDEED_BLOCKED
     if _INDEED_BLOCKED:
@@ -275,12 +241,6 @@ def fetch_all_jobs(since_seconds=86400):
     for kw in portal_kws:
         for loc in portal_locs:
             _add(scrape_naukri(kw, loc))
-            _delay()
-
-    print(f"\n[Shine] Scanning top {len(portal_kws)} keywords...")
-    for kw in portal_kws:
-        for loc in portal_locs:
-            _add(scrape_shine(kw, loc))
             _delay()
 
     print(f"\n[Indeed] Scanning top {len(portal_kws)} keywords...")
