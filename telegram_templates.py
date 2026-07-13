@@ -13,6 +13,49 @@ CTAS = [
     "🔗 *See details & apply* 👇",
 ]
 
+# Rotating creative divider — between hook and company (unique per job/day)
+DIVIDERS = [
+    "✦ ─── ✦ ─── ✦",
+    "⋆｡°✩ *OPENING* ✩°｡⋆",
+    "━ ━ ✨ *HOT ROLE* ✨ ━ ━",
+    "· · · ✦ · · ·",
+    "⭐ ━━━ ⭐ ━━━ ⭐",
+    "～～～ ✦ ～～～",
+    "─── ✨ *NEW OPPORTUNITY* ✨ ───",
+    "◆ ─ ◆ ─ ◆ ─ ◆",
+    "✨ · · ✨ · · ✨",
+    "══════ 🔥 ══════",
+    "·✦·✦·✦·✦·✦·",
+    "── ✨ *NOW HIRING* ✨ ──",
+    "⋆ ⋆ ⋆ ⋆ ⋆ ⋆ ⋆",
+    "╭── ✦ ──╮",
+    "✧ *details below* ✧",
+    "▰▱▰▱▰▱▰▱▰▱▰▱",
+    "✦ ✧ ✦ ✧ ✦ ✧ ✦",
+    "— — ✦ — — ✦ — —",
+    "✨ ━━━ *FRESH POST* ━━━ ✨",
+    "◈ ◈ ◈ ◈ ◈",
+    "·:*✧ OPEN ROLE ✧*:·",
+    "╌╌╌ ✦ ╌╌╌",
+    "★ · ★ · ★ · ★",
+    "─── 🔥 *DON'T MISS* 🔥 ───",
+    "✧･ﾟ: *✧･ﾟ:* ✧･ﾟ: *✧･ﾟ:*",
+    "▬▬▬ ✦ ▬▬▬",
+    "· · ✨ · · ✨ · ·",
+    "◆━━◆━━◆━━◆",
+    "✦ rolling in ✦",
+    "── ⭐ *YOUR MOVE* ⭐ ──",
+    "⋆｡°✩ grab it ✩°｡⋆",
+    "✨ ═══ ✨ ═══ ✨",
+    "·✧·✧·✧·✧·",
+    "━━ 🔥 *LIVE NOW* 🔥 ━━",
+    "✦ · ✦ · ✦ · ✦",
+    "╭ ✨ ╮",
+    "◈ ── ◈ ── ◈",
+    "★ ━━━ ★ ━━━ ★",
+    "· · · 🔥 · · ·",
+]
+
 
 def _ist_now():
     return datetime.utcnow() + IST
@@ -30,6 +73,10 @@ def _pick_idx(job, n, salt):
 def _creative_hook(job, co):
     template = HOOKS_100[_pick_idx(job, len(HOOKS_100), "hook")]
     return template.format(co=co)
+
+
+def _creative_divider(job):
+    return DIVIDERS[_pick_idx(job, len(DIVIDERS), "divider")]
 
 
 def render_job_post(
@@ -54,10 +101,13 @@ def render_job_post(
     ps = escape(posted_str) if posted_str else "Recently posted"
 
     hook = _creative_hook(job, co)
+    divider = _creative_divider(job)
     cta = CTAS[_pick_idx(job, len(CTAS), "cta")]
 
     lines = [
         hook,
+        "",
+        divider,
         "",
         f"🏢 *_Company:_* 🔥 *{co}* 🔥",
         "",
