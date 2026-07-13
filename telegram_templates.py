@@ -59,7 +59,7 @@ def render_job_post(
     lines = [
         hook,
         "",
-        f"🏢 *Company:* *{co}*",
+        f"🏢 *Company:* 🔥 *{co}* 🔥",
         "",
         f"💼 *Role:* *{ti}*",
         "",
