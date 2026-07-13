@@ -83,7 +83,7 @@ def render_job_post(
     details = [
         f"Company : *{co}*",
         f"Role       : *{ti}*",
-        f"Location : {lo}",
+        f"Location : *{lo}*",
     ]
     if meta_line:
         details.append(f"_{meta_line}_")
