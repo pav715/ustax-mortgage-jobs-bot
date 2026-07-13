@@ -109,27 +109,24 @@ def render_job_post(
         "",
         divider,
         "",
-        f"🏢 *_Company:_* 🔥 *{co}* 🔥",
+        f"🏢 *Company:* 🔥 *{co}* 🔥",
         "",
-        f"💼 *_Role:_* *{ti}*",
+        f"💼 *Role:* *{ti}*",
         "",
-        f"📍 *_Location:_* *{lo}*",
+        f"📍 *Location:* *{lo}*",
         "",
-        f"🎯 *_Experience:_* *{ex}*",
+        f"🎯 *Experience:* *{ex}*",
         "",
-        f"⏰ *_Posted:_* *{ps}*",
+        f"⏰ *Posted:* *{ps}*",
     ]
 
     if salary and salary.lower() not in ("not mentioned", "", "n/a"):
-        lines += ["", f"💰 *_Salary:_* *{escape(salary)}*"]
+        lines += ["", f"💰 *Salary:* *{escape(salary)}*"]
 
     lines += [
         "",
         cta,
         url,
     ]
-
-    if source:
-        lines += ["", f"📋 _{escape(source)}_"]
 
     return "\n".join(lines)

@@ -510,7 +510,7 @@ def extract_qualification(desc):
 
 def main():
     log("=" * 50)
-    log("US Tax Mortgage Jobs Bot — LinkedIn + Naukri + Indeed")
+    log("US Tax Mortgage Jobs Bot — LinkedIn Only")
     log("=" * 50)
 
     if not config.BOT_TOKEN or not config.CHAT_ID:

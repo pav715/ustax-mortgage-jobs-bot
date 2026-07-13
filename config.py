@@ -3,9 +3,7 @@ import os
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 CHAT_ID = os.environ.get("CHAT_ID", "")
 
-PORTAL_KEYWORD_LIMIT = 20
-
-# LinkedIn + Naukri search — Mortgage / Loan / Financial Services titles
+# LinkedIn search — Mortgage / Loan / Financial Services titles
 KEYWORDS = [
     # Financial Analyst (1–15)
     "Financial Analyst",
