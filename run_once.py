@@ -244,8 +244,10 @@ def _keyword_hits(text, keywords):
 
 
 def is_india_location(job):
-    loc = (job.get("location") or "").lower()
+    loc = (job.get("location") or job.get("search_location") or "").lower()
     title = (job.get("title") or "").lower()
+    if not loc.strip():
+        return True
 
     if any(kw in loc for kw in FOREIGN_LOCATION_KEYWORDS):
         return False
@@ -257,18 +259,40 @@ def is_india_location(job):
     return False
 
 
-def _passes_early_filter(title, company, role_title_pattern):
+_MORTGAGE_INTENT = re.compile(
+    r"\b(mortgage|loan|credit|servicing|underwrit|financial|compliance|risk|banking|escrow|foreclosure|portfolio)\b",
+    re.IGNORECASE,
+)
+
+
+def _title_matches_search(title, keyword):
+    if not title or not keyword:
+        return False
+    tl = title.lower()
+    words = [w for w in re.findall(r"[a-z]+", keyword.lower()) if len(w) > 3]
+    if not words:
+        return False
+    hits = sum(1 for w in words if w in tl)
+    return hits >= max(1, (len(words) + 1) // 2)
+
+
+def _passes_early_filter(job, role_title_pattern):
     """Only let likely mortgage/loan roles through before enrich."""
-    title_l = (title or "").lower()
-    company_l = (company or "").lower()
+    title = job.get("title") or ""
+    company = job.get("company") or ""
+    title_l = title.lower()
+    company_l = company.lower()
+    sk = (job.get("search_keyword") or "").lower()
     if INDIAN_TAX_BLOCKLIST.search(title_l) or INDIAN_TAX_BLOCKLIST.search(company_l):
         return False
     if BLOCKLIST.search(title_l) or BLOCKLIST.search(company_l):
         return False
+    if sk and _MORTGAGE_INTENT.search(sk) and (_title_matches_search(title, sk) or _MORTGAGE_INTENT.search(title_l)):
+        return True
     if MORTGAGE_COMPANY_HINTS.search(company_l):
         return True
     if re.search(
-        r"\b(mortgage|loan|credit|servicing|underwrit|escrow|foreclosure|home\s*loan|housing\s*loan)\b",
+        r"\b(mortgage|loan|credit|servicing|underwrit|escrow|foreclosure|home\s*loan|housing\s*loan|financial\s*services)\b",
         title_l,
     ):
         return True
@@ -298,9 +322,15 @@ def is_mortgage_tax_job(job):
     if BLOCKLIST.search(title) or BLOCKLIST.search(company):
         return False
 
+    # Search keyword + title alignment (Naukri/Indeed/LinkedIn)
+    sk = (job.get("search_keyword") or "")
+    if sk and _title_matches_search(title, sk) and _MORTGAGE_INTENT.search(sk):
+        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: search keyword")
+        return True
+
     # Clear loan/mortgage titles always pass
     if re.search(
-        r"\b(mortgage|loan|credit|servicing|underwrit|escrow|foreclosure|home\s*loan|housing\s*loan)\b",
+        r"\b(mortgage|loan|credit|servicing|underwrit|escrow|foreclosure|home\s*loan|housing\s*loan|financial\s*services)\b",
         title,
     ):
         print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: loan/mortgage title")
@@ -578,7 +608,7 @@ def main():
 
     matched_jobs = []
     for job in india_jobs:
-        if not _passes_early_filter(job.get("title"), job.get("company"), MORTGAGE_ROLE_TITLE):
+        if not _passes_early_filter(job, MORTGAGE_ROLE_TITLE):
             continue
         job = enrich_job(job)
         if is_mortgage_tax_job(job):

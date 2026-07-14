@@ -30,7 +30,7 @@ NAUKRI_HEADERS = {
 
 PORTAL_KEYWORD_LIMIT = getattr(config, "PORTAL_KEYWORD_LIMIT", 12)
 PORTAL_LOCATION_LIMIT = 4
-NAUKRI_JOBS_PER_SEARCH = 5
+NAUKRI_JOBS_PER_SEARCH = 8
 _INDEED_BLOCKED = False
 
 
@@ -77,18 +77,22 @@ def _strip_html(text):
     return BeautifulSoup(str(text), "html.parser").get_text(" ", strip=True)
 
 
-def _make_job(title, company, location, url, posted="", source="LinkedIn", description=""):
+def _make_job(title, company, location, url, posted="", source="LinkedIn", description="",
+              search_keyword="", search_location=""):
+    loc = location or search_location or ""
     return {
         "id": _job_id(url, title, company),
         "title": title,
         "company": company,
-        "location": location,
+        "location": loc,
         "url": url,
         "posted": posted,
         "experience": "",
         "skills": "",
         "description": description or "",
         "source": source,
+        "search_keyword": search_keyword,
+        "search_location": search_location or loc,
         "fetched_at": datetime.now().isoformat(),
     }
 
@@ -125,7 +129,8 @@ def scrape_linkedin(keyword, location, since_seconds=86400):
                 link = a_tag["href"].split("?")[0] if a_tag else ""
                 posted = t_tag.get("datetime", "") if t_tag else ""
                 if title and link:
-                    jobs.append(_make_job(title, company, loc_str, link, posted, "LinkedIn"))
+                    jobs.append(_make_job(title, company, loc_str, link, posted, "LinkedIn",
+                                          search_keyword=keyword, search_location=location))
             except Exception:
                 pass
     except Exception as e:
@@ -162,7 +167,8 @@ def _naukri_fetch_job(job_id):
             exp = f"{min_exp}-{max_exp} Years"
         elif min_exp is not None:
             exp = f"{min_exp}+ Years"
-        job = _make_job(title, company, loc_str or "", jurl, "", "Naukri", desc)
+        job = _make_job(title, company, loc_str or location, jurl, "", "Naukri", desc,
+                        search_keyword=keyword, search_location=location)
         if exp:
             job["experience"] = exp
         return job
@@ -232,7 +238,8 @@ def scrape_indeed(keyword, location):
             desc_tag = item.find("description")
             desc = desc_tag.get_text(separator=" ", strip=True) if desc_tag else ""
             if title and link:
-                jobs.append(_make_job(title, company, location, link, posted, "Indeed", desc))
+                jobs.append(_make_job(title, company, location, link, posted, "Indeed", desc,
+                                      search_keyword=keyword, search_location=location))
     except Exception as e:
         print(f"  [Indeed] Error ({keyword}/{location}): {e}")
     print(f"  [Indeed] '{keyword}' / {location} — {len(jobs)} jobs")
