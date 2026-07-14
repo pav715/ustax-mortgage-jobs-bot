@@ -269,11 +269,16 @@ def _title_matches_search(title, keyword):
     if not title or not keyword:
         return False
     tl = title.lower()
-    words = [w for w in re.findall(r"[a-z]+", keyword.lower()) if len(w) > 3]
-    if not words:
-        return False
-    hits = sum(1 for w in words if w in tl)
-    return hits >= max(1, (len(words) + 1) // 2)
+    kw_l = keyword.lower()
+    domain_words = (
+        "mortgage", "loan", "credit", "tax", "servicing", "underwrit",
+        "financial", "compliance", "testing", "software", "banking", "escrow",
+    )
+    for d in domain_words:
+        if d in kw_l:
+            return d in tl
+    words = [w for w in re.findall(r"[a-z]+", kw_l) if len(w) > 3]
+    return bool(words) and all(w in tl for w in words)
 
 
 def _passes_early_filter(job, role_title_pattern):
