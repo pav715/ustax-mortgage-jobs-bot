@@ -4,15 +4,13 @@ on:
   workflow_dispatch:
   repository_dispatch:
     types: [hourly-run]
-  schedule:
-    - cron: '30 2-17 * * *'
 
 permissions:
   contents: write
 
 concurrency:
   group: auto-bot-run
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   run-bot:
@@ -30,36 +28,14 @@ jobs:
         id: gate
         run: |
           IST_H=$(TZ=Asia/Kolkata date +%-H)
+          echo "Event: ${{ github.event_name }}"
           echo "IST hour: ${IST_H}"
           if [ "$IST_H" -lt 8 ] || [ "$IST_H" -gt 23 ]; then
+            echo "Outside 8AM-11PM IST window"
             echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ -f bot_state.json ]; then
-            SHOULD=$(python3 - <<'PY'
-          import json
-          from datetime import datetime, timezone
-          try:
-              s = json.load(open("bot_state.json"))
-              last = s.get("last_run_at", "")
-              if not last:
-                  print("true")
-              else:
-                  dt = datetime.fromisoformat(last)
-                  if dt.tzinfo is None:
-                      dt = dt.replace(tzinfo=timezone.utc)
-                  secs = (datetime.now(timezone.utc) - dt).total_seconds()
-                  print("false" if secs < 2700 else "true")
-          except Exception:
-              print("true")
-          PY
-          )
-            if [ "$SHOULD" = "false" ]; then
-              echo "Dedupe skip"
-              echo "run=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          fi
+          echo "Orchestrator dispatch — always run (no dedupe skip)"
           echo "run=true" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-python@v5

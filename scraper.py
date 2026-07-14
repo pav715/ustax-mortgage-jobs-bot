@@ -28,9 +28,9 @@ NAUKRI_HEADERS = {
     "Accept": "application/json",
 }
 
-PORTAL_KEYWORD_LIMIT = getattr(config, "PORTAL_KEYWORD_LIMIT", 20)
-PORTAL_LOCATION_LIMIT = 6
-NAUKRI_JOBS_PER_SEARCH = 8
+PORTAL_KEYWORD_LIMIT = getattr(config, "PORTAL_KEYWORD_LIMIT", 12)
+PORTAL_LOCATION_LIMIT = 4
+NAUKRI_JOBS_PER_SEARCH = 5
 _INDEED_BLOCKED = False
 
 
@@ -41,6 +41,34 @@ def _job_id(url, title, company):
 
 def _delay():
     time.sleep(random.uniform(0.6, 1.2))
+
+
+def _ist_hour():
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Asia/Kolkata")).hour
+    except Exception:
+        return datetime.utcnow().hour
+
+
+def _rotated_slice(items, limit, hour=None):
+    if not items or limit <= 0 or len(items) <= limit:
+        return list(items)
+    if hour is None:
+        hour = _ist_hour()
+    start = (hour * limit) % len(items)
+    chunk = items[start : start + limit]
+    if len(chunk) < limit:
+        chunk += items[: limit - len(chunk)]
+    return chunk
+
+
+def _linkedin_scan_set():
+    kw_limit = getattr(config, "LINKEDIN_KEYWORD_LIMIT", 30)
+    loc_limit = getattr(config, "LINKEDIN_LOCATION_LIMIT", 6)
+    kws = _rotated_slice(config.KEYWORDS, kw_limit)
+    locs = config.LOCATIONS[:loc_limit]
+    return kws, locs
 
 
 def _strip_html(text):
@@ -212,7 +240,7 @@ def scrape_indeed(keyword, location):
 
 
 def _portal_keywords():
-    return getattr(config, "KEYWORDS", [])[:PORTAL_KEYWORD_LIMIT]
+    return _rotated_slice(getattr(config, "KEYWORDS", []), PORTAL_KEYWORD_LIMIT)
 
 
 def fetch_all_jobs(since_seconds=86400):
@@ -229,15 +257,17 @@ def fetch_all_jobs(since_seconds=86400):
                 all_jobs.append(job)
 
     print(f"\n[LinkedIn] Scanning (last {since_seconds // 3600}h)...")
-    for kw in config.KEYWORDS:
-        for loc in config.LOCATIONS:
+    linkedin_kws, linkedin_locs = _linkedin_scan_set()
+    print(f"  Batch: {len(linkedin_kws)} keywords × {len(linkedin_locs)} cities (IST hour {_ist_hour()})")
+    for kw in linkedin_kws:
+        for loc in linkedin_locs:
             _add(scrape_linkedin(kw, loc, since_seconds))
             _delay()
 
     portal_kws = _portal_keywords()
     portal_locs = config.LOCATIONS[:PORTAL_LOCATION_LIMIT]
 
-    print(f"\n[Naukri] Scanning top {len(portal_kws)} keywords (v2 API)...")
+    print(f"\n[Naukri] Scanning {len(portal_kws)} keywords × {len(portal_locs)} cities (v2 API)...")
     for kw in portal_kws:
         for loc in portal_locs:
             _add(scrape_naukri(kw, loc))
