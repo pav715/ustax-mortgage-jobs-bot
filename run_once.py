@@ -258,18 +258,28 @@ def is_india_location(job):
 
 
 def _passes_early_filter(title, company, role_title_pattern):
-    """Let clear role-title matches through before generic blocklist."""
+    """Only let likely mortgage/loan roles through before enrich."""
     title_l = (title or "").lower()
     company_l = (company or "").lower()
     if INDIAN_TAX_BLOCKLIST.search(title_l) or INDIAN_TAX_BLOCKLIST.search(company_l):
         return False
-    if role_title_pattern.search(title_l):
-        if BLOCKLIST.search(title_l) or BLOCKLIST.search(company_l):
-            return False
-        return True
     if BLOCKLIST.search(title_l) or BLOCKLIST.search(company_l):
         return False
-    return True
+    if MORTGAGE_COMPANY_HINTS.search(company_l):
+        return True
+    if re.search(
+        r"\b(mortgage|loan|credit|servicing|underwrit|escrow|foreclosure|home\s*loan|housing\s*loan)\b",
+        title_l,
+    ):
+        return True
+    if role_title_pattern.search(title_l):
+        if GENERIC_FINANCE_TITLE.search(title_l):
+            return bool(
+                MORTGAGE_COMPANY_HINTS.search(company_l)
+                or re.search(r"\b(mortgage|loan|credit|banking|financial\s*services)\b", title_l)
+            )
+        return True
+    return False
 
 
 def _has_mortgage_signal(text):
@@ -285,6 +295,16 @@ def is_mortgage_tax_job(job):
 
     if INDIAN_TAX_BLOCKLIST.search(title) or INDIAN_TAX_BLOCKLIST.search(company):
         return False
+    if BLOCKLIST.search(title) or BLOCKLIST.search(company):
+        return False
+
+    # Clear loan/mortgage titles always pass
+    if re.search(
+        r"\b(mortgage|loan|credit|servicing|underwrit|escrow|foreclosure|home\s*loan|housing\s*loan)\b",
+        title,
+    ):
+        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: loan/mortgage title")
+        return True
 
     if MORTGAGE_ROLE_TITLE.search(title):
         if BLOCKLIST.search(title) or BLOCKLIST.search(company):
