@@ -44,12 +44,16 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git stash --include-untracked
-          git pull --rebase origin main
-          git stash pop || true
-          git add seen_jobs.json stats.json bot_state.json 2>/dev/null || true
+          mkdir -p /tmp/bot-state-backup
+          cp -f bot_state.json seen_jobs.json stats.json /tmp/bot-state-backup/ 2>/dev/null || true
+          git fetch origin main
+          git reset --hard origin/main
+          cp -f /tmp/bot-state-backup/bot_state.json bot_state.json 2>/dev/null || true
+          cp -f /tmp/bot-state-backup/seen_jobs.json seen_jobs.json 2>/dev/null || true
+          cp -f /tmp/bot-state-backup/stats.json stats.json 2>/dev/null || true
+          git add bot_state.json seen_jobs.json stats.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "Update bot state [skip ci]"
-          git push || exit 1
+          git push origin main
       - name: Notify Telegram on failure
         if: failure()
         env:
