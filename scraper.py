@@ -64,9 +64,18 @@ def _rotated_slice(items, limit, hour=None):
 
 
 def _linkedin_scan_set():
-    kw_limit = getattr(config, "LINKEDIN_KEYWORD_LIMIT", 30)
+    kw_limit = getattr(config, "LINKEDIN_KEYWORD_LIMIT", 40)
     loc_limit = getattr(config, "LINKEDIN_LOCATION_LIMIT", 6)
-    kws = _rotated_slice(config.KEYWORDS, kw_limit)
+    priority = getattr(config, "PRIORITY_KEYWORDS", None) or config.KEYWORDS[:12]
+    rotated = _rotated_slice(config.KEYWORDS, max(0, kw_limit - len(priority)))
+    seen = set()
+    kws = []
+    for kw in list(priority) + rotated:
+        if kw not in seen:
+            seen.add(kw)
+            kws.append(kw)
+        if len(kws) >= kw_limit:
+            break
     locs = config.LOCATIONS[:loc_limit]
     return kws, locs
 

@@ -517,7 +517,7 @@ def handle_commands(state, stats):
 
 
 def enrich_job(job):
-    if job.get("description") and len(job["description"]) > 300:
+    if job.get("description") and len(job["description"]) > 200:
         return job
     url = job.get("url", "")
     fetched = False
@@ -581,16 +581,8 @@ def main():
         log("Bot is PAUSED.")
         return
 
-    last_run = state.get("last_run_at", "")
-    if last_run:
-        try:
-            elapsed = (datetime.utcnow() - datetime.fromisoformat(last_run)).total_seconds()
-            since_seconds = int(elapsed) + 300
-        except Exception:
-            since_seconds = 2400
-    else:
-        since_seconds = 2400
-    since_seconds = max(3600, min(since_seconds, 7200))
+    since_seconds = getattr(config, "SCRAPE_WINDOW_SECONDS", 86400)
+    log(f"Fetch window: {since_seconds // 3600} hours")
 
     seen = load_seen()
     try:
