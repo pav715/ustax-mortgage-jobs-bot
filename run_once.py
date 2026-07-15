@@ -327,26 +327,26 @@ def is_mortgage_tax_job(job):
     if BLOCKLIST.search(title) or BLOCKLIST.search(company):
         return False
 
-    # Search keyword + title alignment (Naukri/Indeed/LinkedIn)
     sk = (job.get("search_keyword") or "")
-    if sk and _title_matches_search(title, sk) and _MORTGAGE_INTENT.search(sk):
-        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: search keyword")
-        return True
-
-    # Clear loan/mortgage titles always pass
+    sk_l = sk.lower()
+    # Title-based pass without description (avoids LinkedIn enrich rate limits)
     if re.search(
         r"\b(mortgage|loan|credit|servicing|underwrit|escrow|foreclosure|home\s*loan|housing\s*loan|financial\s*services)\b",
         title,
     ):
         print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: loan/mortgage title")
         return True
+    if sk_l and _MORTGAGE_INTENT.search(sk_l) and _title_matches_search(title, sk):
+        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: search keyword")
+        return True
 
     if MORTGAGE_ROLE_TITLE.search(title):
         if BLOCKLIST.search(title) or BLOCKLIST.search(company):
             return False
         if GENERIC_FINANCE_TITLE.search(title) and not _has_mortgage_signal(blob):
-            return False
-        if not _has_mortgage_signal(blob) and not MORTGAGE_COMPANY_HINTS.search(company):
+            if not re.search(r"\b(loan|credit|mortgage|compliance|risk|banking|financial\s*services)\b", title):
+                return False
+        elif not _has_mortgage_signal(blob) and not MORTGAGE_COMPANY_HINTS.search(company):
             # Loan-specific titles (credit/loan/mortgage/compliance) pass without extra signal
             if not re.search(
                 r"\b(loan|credit|mortgage|compliance|risk|banking\s*operat|finance\s*operat)\b",
@@ -604,17 +604,27 @@ def main():
     log(f"India jobs: {len(india_jobs)} / {len(jobs)}")
 
     matched_jobs = []
+    enrich_budget = getattr(config, "MAX_ENRICH_PER_CYCLE", 30)
+    enriched = 0
     for job in india_jobs:
         if not _passes_early_filter(job, MORTGAGE_ROLE_TITLE):
             continue
+        if is_mortgage_tax_job(job):
+            matched_jobs.append(job)
+            continue
+        if enriched >= enrich_budget:
+            continue
         job = enrich_job(job)
+        enriched += 1
         if is_mortgage_tax_job(job):
             matched_jobs.append(job)
 
+    log(f"Enriched {enriched} jobs (budget {enrich_budget})")
     log(f"Mortgage/Tax relevant: {len(matched_jobs)}")
 
     new_jobs = [j for j in matched_jobs if not _is_seen(j, seen)]
     new_jobs.sort(key=lambda j: str(j.get("posted") or j.get("fetched_at") or ""))
+    log(f"New jobs to send: {len(new_jobs)}")
 
     if not new_jobs:
         save_seen(seen)
@@ -639,6 +649,8 @@ def main():
             co = job.get("company", "Other")
             stats["companies"][co] = stats["companies"].get(co, 0) + 1
             log(f"  Sent: {job['title']} @ {job['company']}")
+        else:
+            log(f"  Failed to send: {job['title']} @ {job['company']}")
 
     save_seen(seen)
     save_stats(stats)
