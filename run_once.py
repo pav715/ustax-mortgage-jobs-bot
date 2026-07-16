@@ -281,6 +281,27 @@ def _title_matches_search(title, keyword):
     return bool(words) and all(w in tl for w in words)
 
 
+def _passes_mortgage_search_trust(job):
+    """Trust LinkedIn mortgage/loan keyword search when title aligns."""
+    sk = (job.get("search_keyword") or "")
+    sk_l = sk.lower()
+    title = (job.get("title") or "").lower()
+    if not sk_l or not _MORTGAGE_INTENT.search(sk_l):
+        return False
+    if INDIAN_TAX_BLOCKLIST.search(title) or BLOCKLIST.search(title):
+        return False
+    if _MORTGAGE_INTENT.search(title):
+        return True
+    if _title_matches_search(job.get("title", ""), sk):
+        return True
+    if re.search(
+        r"\b(analyst|specialist|associate|officer|underwriter|processor|closer|servicing|manager|lead|consultant)\b",
+        title,
+    ):
+        return True
+    return False
+
+
 def _passes_early_filter(job, role_title_pattern):
     """Only let likely mortgage/loan roles through before enrich."""
     title = job.get("title") or ""
@@ -292,6 +313,8 @@ def _passes_early_filter(job, role_title_pattern):
         return False
     if BLOCKLIST.search(title_l) or BLOCKLIST.search(company_l):
         return False
+    if _passes_mortgage_search_trust(job):
+        return True
     if sk and _MORTGAGE_INTENT.search(sk) and (_title_matches_search(title, sk) or _MORTGAGE_INTENT.search(title_l)):
         return True
     if MORTGAGE_COMPANY_HINTS.search(company_l):
@@ -327,11 +350,15 @@ def is_mortgage_tax_job(job):
     if BLOCKLIST.search(title) or BLOCKLIST.search(company):
         return False
 
+    if _passes_mortgage_search_trust(job):
+        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: search keyword trust")
+        return True
+
     sk = (job.get("search_keyword") or "")
     sk_l = sk.lower()
     # Title-based pass without description (avoids LinkedIn enrich rate limits)
     if re.search(
-        r"\b(mortgage|loan|credit|servicing|underwrit|escrow|foreclosure|home\s*loan|housing\s*loan|financial\s*services)\b",
+        r"\b(mortgage|loan|credit|servicing|underwrit|escrow|foreclosure|home\s*loan|housing\s*loan|financial)\b",
         title,
     ):
         print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: loan/mortgage title")
@@ -344,7 +371,7 @@ def is_mortgage_tax_job(job):
         if BLOCKLIST.search(title) or BLOCKLIST.search(company):
             return False
         if GENERIC_FINANCE_TITLE.search(title) and not _has_mortgage_signal(blob):
-            if not re.search(r"\b(loan|credit|mortgage|compliance|risk|banking|financial\s*services)\b", title):
+            if not re.search(r"\b(loan|credit|mortgage|compliance|risk|banking|financial)\b", title):
                 return False
         elif not _has_mortgage_signal(blob) and not MORTGAGE_COMPANY_HINTS.search(company):
             # Loan-specific titles (credit/loan/mortgage/compliance) pass without extra signal

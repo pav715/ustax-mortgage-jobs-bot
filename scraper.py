@@ -148,7 +148,7 @@ def scrape_linkedin(keyword, location, since_seconds=86400):
     return jobs
 
 
-def _naukri_fetch_job(job_id):
+def _naukri_fetch_job(job_id, keyword="", location=""):
     """Fetch single job via Naukri v2 API (v3 blocked by recaptcha)."""
     try:
         r = requests.get(
@@ -199,9 +199,9 @@ def scrape_naukri(keyword, location):
         if r.status_code != 200:
             print(f"  [Naukri] HTTP {r.status_code} — '{keyword}' / {location}")
             return jobs
-        job_ids = (r.json().get("srpJobIds") or [])[:NAUKRI_JOBS_PER_SEARCH]
+        job_ids = (r.json().get("srpJobIds") or [])[:getattr(config, "NAUKRI_JOBS_PER_SEARCH", NAUKRI_JOBS_PER_SEARCH)]
         for jid in job_ids:
-            job = _naukri_fetch_job(jid)
+            job = _naukri_fetch_job(jid, keyword=keyword, location=location)
             if job:
                 if not job.get("location"):
                     job["location"] = location
@@ -256,7 +256,18 @@ def scrape_indeed(keyword, location):
 
 
 def _portal_keywords():
-    return _rotated_slice(getattr(config, "KEYWORDS", []), PORTAL_KEYWORD_LIMIT)
+    priority = getattr(config, "PRIORITY_KEYWORDS", None) or config.KEYWORDS[:12]
+    limit = getattr(config, "PORTAL_KEYWORD_LIMIT", 12)
+    rotated = _rotated_slice(config.KEYWORDS, max(0, limit - len(priority)))
+    seen = set()
+    kws = []
+    for kw in list(priority) + rotated:
+        if kw not in seen:
+            seen.add(kw)
+            kws.append(kw)
+        if len(kws) >= limit:
+            break
+    return kws
 
 
 def fetch_all_jobs(since_seconds=86400):
@@ -281,7 +292,7 @@ def fetch_all_jobs(since_seconds=86400):
             _delay()
 
     portal_kws = _portal_keywords()
-    portal_locs = config.LOCATIONS[:PORTAL_LOCATION_LIMIT]
+    portal_locs = config.LOCATIONS[:getattr(config, "LINKEDIN_LOCATION_LIMIT", 10)]
 
     print(f"\n[Naukri] Scanning {len(portal_kws)} keywords × {len(portal_locs)} cities (v2 API)...")
     for kw in portal_kws:

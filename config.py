@@ -134,10 +134,28 @@ LOCATIONS = [
 ]
 
 MAX_JOBS_PER_CYCLE = 15
-PORTAL_KEYWORD_LIMIT = 15
+PORTAL_KEYWORD_LIMIT = 20
 LINKEDIN_KEYWORD_LIMIT = 40
-LINKEDIN_LOCATION_LIMIT = 6
-NAUKRI_JOBS_PER_SEARCH = 8
+LINKEDIN_LOCATION_LIMIT = 10
+NAUKRI_JOBS_PER_SEARCH = 10
 SCRAPE_WINDOW_SECONDS = 86400
-MAX_ENRICH_PER_CYCLE = 30
+MAX_ENRICH_PER_CYCLE = 50
 CHECK_INTERVAL_LABEL = "1 hour"
+
+PRIORITY_KEYWORDS = [
+    "Mortgage Analyst",
+    "Mortgage Loan Analyst",
+    "Loan Analyst",
+    "Credit Analyst",
+    "Mortgage Servicing Analyst",
+    "Mortgage Operations Analyst",
+    "Loan Servicing Analyst",
+    "Mortgage Underwriter",
+    "Financial Analyst",
+    "Mortgage Compliance Analyst",
+    "Loan Operations Analyst",
+    "Credit Risk Analyst",
+    "Mortgage Quality Analyst",
+    "Escrow Analyst",
+    "Business Analyst Mortgage",
+]

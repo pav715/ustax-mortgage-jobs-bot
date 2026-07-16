@@ -20,7 +20,11 @@ def _escape(text):
 
 def _post(text, chat_id=None, retry=2):
     cid = str(chat_id or config.CHAT_ID)
-    if not cid or cid == "None" or not config.BOT_TOKEN:
+    if not cid or cid == "None":
+        print("[Telegram] ERROR: CHAT_ID not set.")
+        return False
+    if not config.BOT_TOKEN:
+        print("[Telegram] ERROR: BOT_TOKEN not set.")
         return False
     try:
         for attempt in range(retry):
