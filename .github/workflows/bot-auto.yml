@@ -27,6 +27,11 @@ jobs:
       - name: IST hour gate
         id: gate
         run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual dispatch — bypass IST window"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           IST_H=$(TZ=Asia/Kolkata date +%-H)
           echo "Event: ${{ github.event_name }}"
           echo "IST hour: ${IST_H}"
