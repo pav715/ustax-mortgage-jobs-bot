@@ -69,15 +69,24 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p /tmp/bot-state-backup
-          cp -f bot_state.json seen_jobs.json stats.json /tmp/bot-state-backup/ 2>/dev/null || true
+          cp -f bot_state.json seen_jobs.json stats.json last_cycle.json /tmp/bot-state-backup/ 2>/dev/null || true
           git fetch origin main
           git reset --hard origin/main
           cp -f /tmp/bot-state-backup/bot_state.json bot_state.json 2>/dev/null || true
           cp -f /tmp/bot-state-backup/seen_jobs.json seen_jobs.json 2>/dev/null || true
           cp -f /tmp/bot-state-backup/stats.json stats.json 2>/dev/null || true
-          git add bot_state.json seen_jobs.json stats.json 2>/dev/null || true
+          cp -f /tmp/bot-state-backup/last_cycle.json last_cycle.json 2>/dev/null || true
+          git add bot_state.json seen_jobs.json stats.json last_cycle.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "Update bot state [skip ci]"
           git push origin main
+
+      - name: Cycle summary
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          if [ -f last_cycle.json ]; then
+            echo "### Cycle report" >> $GITHUB_STEP_SUMMARY
+            cat last_cycle.json >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Notify Telegram on failure
         if: failure() && steps.gate.outputs.run == 'true'

@@ -19,6 +19,30 @@ SEEN_FILE = "seen_jobs.json"
 STATS_FILE = "stats.json"
 STATE_FILE = "bot_state.json"
 
+
+def _write_cycle_report(scraped=0, india=0, matched=0, new=0, sent=0, seen_total=0, **extra):
+    data = {
+        "scraped": scraped, "india": india, "matched": matched,
+        "new": new, "sent": sent, "seen_total": seen_total, **extra,
+        "at": datetime.utcnow().isoformat(),
+    }
+    try:
+        with open("last_cycle.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception:
+        pass
+
+
+def _check_telegram():
+    try:
+        base = f"https://api.telegram.org/bot{config.BOT_TOKEN}"
+        me = requests.get(f"{base}/getMe", timeout=10)
+        chat = requests.get(f"{base}/getChat", params={"chat_id": config.CHAT_ID}, timeout=10)
+        ok = me.status_code == 200 and chat.status_code == 200
+        return ok, f"getMe={me.status_code} getChat={chat.status_code} {chat.text[:80]}"
+    except Exception as e:
+        return False, str(e)
+
 BLOCKLIST = re.compile(
     r"\b("
     r"recruiter|recruitment|talent\s*acquisition|bench\s*sales|"
@@ -244,8 +268,13 @@ def _keyword_hits(text, keywords):
 
 
 def is_india_location(job):
-    loc = (job.get("location") or job.get("search_location") or "").lower()
+    loc = (job.get("location") or "").lower()
+    search_loc = (job.get("search_location") or "").lower()
     title = (job.get("title") or "").lower()
+
+    if search_loc and any(kw in search_loc for kw in INDIA_LOCATION_KEYWORDS):
+        return True
+
     if not loc.strip():
         return True
 
@@ -599,6 +628,9 @@ def main():
         log("ERROR: BOT_TOKEN or CHAT_ID not set.")
         sys.exit(1)
 
+    tg_ok, tg_msg = _check_telegram()
+    log(f"Telegram check: {tg_msg}")
+
     state = load_state()
     stats = load_stats()
     state = handle_commands(state, stats)
@@ -658,6 +690,7 @@ def main():
         save_stats(stats)
         _mark_run_complete(state)
         log("No new jobs this cycle.")
+        _write_cycle_report(len(jobs), len(india_jobs), len(matched_jobs), 0, 0, len(seen), telegram_ok=tg_ok)
         return
 
     if len(new_jobs) > config.MAX_JOBS_PER_CYCLE:
@@ -682,6 +715,7 @@ def main():
     save_seen(seen)
     save_stats(stats)
     _mark_run_complete(state)
+    _write_cycle_report(len(jobs), len(india_jobs), len(matched_jobs), len(new_jobs), sent, len(seen), telegram_ok=tg_ok)
     log(f"Done. Sent {sent} jobs. Today total: {stats['sent']}.")
 
 

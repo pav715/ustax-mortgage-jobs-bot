@@ -1,5 +1,6 @@
 """Multi-source job scraper — LinkedIn, Naukri (v2), Indeed."""
 import hashlib
+import os
 import re
 import time
 import random
@@ -40,7 +41,10 @@ def _job_id(url, title, company):
 
 
 def _delay():
-    time.sleep(random.uniform(0.6, 1.2))
+    if os.environ.get("GITHUB_ACTIONS"):
+        time.sleep(random.uniform(1.2, 2.0))
+    else:
+        time.sleep(random.uniform(0.6, 1.2))
 
 
 def _ist_hour():
