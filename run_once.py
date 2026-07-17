@@ -6,7 +6,7 @@ import time
 import sys
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import config
 
 if sys.stdout.encoding != "utf-8":
