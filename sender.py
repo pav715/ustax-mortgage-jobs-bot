@@ -50,15 +50,13 @@ def _post(text, chat_id=None, retry=2):
 
 
 def _format_posted(posted, fetched_at=""):
-    """Date only — no time."""
+    """Date only — no time. Never invent today's date."""
     IST_OFFSET = timedelta(hours=5, minutes=30)
     p = str(posted or "").strip()
 
     if p and re.match(r"\d{4}-\d{2}-\d{2}", p):
         try:
-            dt = datetime.fromisoformat(p[:19])
-            if len(p) >= 16:
-                dt = dt + IST_OFFSET
+            dt = datetime.fromisoformat(p[:19]) + IST_OFFSET
             return dt.strftime("%d %b %Y")
         except Exception:
             pass
@@ -69,16 +67,9 @@ def _format_posted(posted, fetched_at=""):
             return m.group(1)
 
     if p and not re.search(r"\d:\d{2}", p):
-        return p
+        return p[:40]
 
-    if fetched_at:
-        try:
-            dt = datetime.fromisoformat(str(fetched_at)[:19])
-            return (dt + IST_OFFSET).strftime("%d %b %Y")
-        except Exception:
-            pass
-
-    return date.today().strftime("%d %b %Y")
+    return "Recently posted"
 
 
 def _urgency_tag(posted):

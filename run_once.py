@@ -439,6 +439,58 @@ def _mark_run_complete(state):
     save_state(state)
 
 
+IST = timedelta(hours=5, minutes=30)
+
+
+def _ist_now():
+    return datetime.utcnow() + IST
+
+
+def _job_posted_ist(job):
+    """Parse job posted timestamp as naive IST datetime."""
+    posted = (job.get("posted") or "").strip()
+    if not posted:
+        return None
+    iso = posted.replace("Z", "").split("+")[0]
+    try:
+        if re.match(r"\d{4}-\d{2}-\d{2}", iso):
+            return datetime.fromisoformat(iso[:19]) + IST
+    except Exception:
+        pass
+    try:
+        from email.utils import parsedate_to_datetime
+        dt = parsedate_to_datetime(posted)
+        if dt.tzinfo:
+            dt = dt.utctimetuple()
+            dt = datetime(*dt[:6])
+        return dt + IST
+    except Exception:
+        pass
+    return None
+
+
+def _cycle_cutoff_ist(state):
+    """Jobs must be posted after last successful run (≈ last hour)."""
+    last = (state.get("last_run_at") or "").strip()
+    now = _ist_now()
+    if last:
+        try:
+            return datetime.fromisoformat(last[:19]) + IST
+        except Exception:
+            pass
+    return now - timedelta(hours=1)
+
+
+def _passes_post_window(job, cutoff_ist):
+    """Today (IST) only, and posted since last schedule run."""
+    dt = _job_posted_ist(job)
+    if not dt:
+        return False
+    if dt.date() != _ist_now().date():
+        return False
+    return dt >= cutoff_ist
+
+
 def load_state():
     if os.path.exists(STATE_FILE):
         try:
@@ -681,7 +733,12 @@ def main():
     log(f"Enriched {enriched} jobs (budget {enrich_budget})")
     log(f"Mortgage/Tax relevant: {len(matched_jobs)}")
 
-    new_jobs = [j for j in matched_jobs if not _is_seen(j, seen)]
+    cutoff_ist = _cycle_cutoff_ist(state)
+    log(f"Post window: today IST, since {cutoff_ist.strftime('%Y-%m-%d %H:%M IST')}")
+    fresh_jobs = [j for j in matched_jobs if _passes_post_window(j, cutoff_ist)]
+    log(f"Within post window: {len(fresh_jobs)} (from {len(matched_jobs)} matched)")
+
+    new_jobs = [j for j in fresh_jobs if not _is_seen(j, seen)]
     new_jobs.sort(key=lambda j: str(j.get("posted") or j.get("fetched_at") or ""))
     log(f"New jobs to send: {len(new_jobs)}")
 
