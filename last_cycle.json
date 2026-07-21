@@ -1,11 +1,11 @@
 {
-  "scraped": 1379,
-  "india": 1379,
-  "matched": 1194,
+  "scraped": 1135,
+  "india": 1135,
+  "matched": 987,
   "new": 0,
   "sent": 0,
   "seen_total": 0,
   "telegram_ok": false,
   "telegram_detail": "getMe=200 getChat=400 {\"ok\":false,\"error_code\":400,\"description\":\"Bad Request: chat not found\"}",
-  "at": "2026-07-21T16:10:30.026912"
+  "at": "2026-07-21T17:07:14.665234"
 }
