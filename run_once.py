@@ -481,14 +481,12 @@ def _cycle_cutoff_ist(state):
     return now - timedelta(hours=1)
 
 
-def _passes_post_window(job, cutoff_ist):
-    """Today (IST) only, and posted since last schedule run."""
+def _passes_post_window(job, cutoff_ist=None):
+    """Today (IST) only — seen_jobs dedupe prevents repeat posts."""
     dt = _job_posted_ist(job)
     if not dt:
         return False
-    if dt.date() != _ist_now().date():
-        return False
-    return dt >= cutoff_ist
+    return dt.date() == _ist_now().date()
 
 
 def load_state():
@@ -734,9 +732,9 @@ def main():
     log(f"Mortgage/Tax relevant: {len(matched_jobs)}")
 
     cutoff_ist = _cycle_cutoff_ist(state)
-    log(f"Post window: today IST, since {cutoff_ist.strftime('%Y-%m-%d %H:%M IST')}")
-    fresh_jobs = [j for j in matched_jobs if _passes_post_window(j, cutoff_ist)]
-    log(f"Within post window: {len(fresh_jobs)} (from {len(matched_jobs)} matched)")
+    log(f"Post window: today IST only (cutoff ref {cutoff_ist.strftime('%Y-%m-%d %H:%M IST')})")
+    fresh_jobs = [j for j in matched_jobs if _passes_post_window(j)]
+    log(f"Posted today: {len(fresh_jobs)} (from {len(matched_jobs)} matched)")
 
     new_jobs = [j for j in fresh_jobs if not _is_seen(j, seen)]
     new_jobs.sort(key=lambda j: str(j.get("posted") or j.get("fetched_at") or ""))
@@ -747,7 +745,7 @@ def main():
         save_stats(stats)
         _mark_run_complete(state)
         log("No new jobs this cycle.")
-        _write_cycle_report(len(jobs), len(india_jobs), len(matched_jobs), 0, 0, len(seen), telegram_ok=tg_ok, telegram_detail=tg_msg)
+        _write_cycle_report(len(jobs), len(india_jobs), len(matched_jobs), 0, 0, len(seen), fresh_today=len(fresh_jobs), telegram_ok=tg_ok, telegram_detail=tg_msg)
         return
 
     if len(new_jobs) > config.MAX_JOBS_PER_CYCLE:
@@ -772,7 +770,7 @@ def main():
     save_seen(seen)
     save_stats(stats)
     _mark_run_complete(state)
-    _write_cycle_report(len(jobs), len(india_jobs), len(matched_jobs), len(new_jobs), sent, len(seen), telegram_ok=tg_ok, telegram_detail=tg_msg)
+    _write_cycle_report(len(jobs), len(india_jobs), len(matched_jobs), len(new_jobs), sent, len(seen), fresh_today=len(fresh_jobs), telegram_ok=tg_ok, telegram_detail=tg_msg)
     log(f"Done. Sent {sent} jobs. Today total: {stats['sent']}.")
 
 
