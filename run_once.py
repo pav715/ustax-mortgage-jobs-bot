@@ -268,23 +268,45 @@ def _keyword_hits(text, keywords):
 
 
 def is_india_location(job):
+    """Accept: India search + India on-site/remote. Accept USA REMOTE. Reject US state on-site."""
     loc = (job.get("location") or "").lower()
     search_loc = (job.get("search_location") or "").lower()
     title = (job.get("title") or "").lower()
 
+    # Rule 1: India search location always passes
     if search_loc and any(kw in search_loc for kw in INDIA_LOCATION_KEYWORDS):
         return True
 
     if not loc.strip():
         return True
 
+    # Rule 2: Reject non-India foreign locations
     if any(kw in loc for kw in FOREIGN_LOCATION_KEYWORDS):
+        # Exception: Allow USA if it's remote
+        if "usa" in loc and "remote" in loc:
+            return True
         return False
+
+    # Rule 3: Accept India on-site jobs
     if any(kw in loc for kw in INDIA_LOCATION_KEYWORDS):
         return True
+
+    # Rule 4: Remote jobs - accept India context, reject US state on-site
     if "remote" in loc:
+        # If location contains USA + remote, accept
+        if "usa" in loc:
+            return True
+        # Check for India context in other remote jobs
         context = f"{loc} {title}"
         return "india" in context or any(kw in context for kw in INDIA_LOCATION_KEYWORDS)
+
+    # Rule 5: Reject onsite US state jobs
+    us_states = ["ohio", "new york", "california", "texas", "florida", "illinois",
+                 "pennsylvania", "georgia", "north carolina", "michigan", "arizona",
+                 "colorado", "washington", "ny", "ca", "tx", "fl", "il", "pa", "ga", "nc", "mi", "az", "co", "wa", "oh"]
+    if any(state in loc for state in us_states):
+        return False
+
     return False
 
 
