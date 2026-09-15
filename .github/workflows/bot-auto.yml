@@ -1,6 +1,8 @@
 name: Bot Auto Run
 
 on:
+  schedule:
+    - cron: '0 3,9,15,21 * * *'  # Every 6 hours (03:00, 09:00, 15:00, 21:00 UTC)
   workflow_dispatch:
   repository_dispatch:
     types: [hourly-run]
@@ -18,88 +20,32 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-
-      - name: Log trigger
-        run: |
-          echo "Event: ${{ github.event_name }}"
-          echo "IST: $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S %Z')"
-
-      - name: IST hour gate
-        id: gate
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "Manual dispatch — bypass IST window"
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          IST_H=$(TZ=Asia/Kolkata date +%-H)
-          echo "Event: ${{ github.event_name }}"
-          echo "IST hour: ${IST_H}"
-          if [ "$IST_H" -lt 8 ] || [ "$IST_H" -gt 23 ]; then
-            echo "Outside 8AM-11PM IST window"
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "Orchestrator dispatch — always run (no dedupe skip)"
-          echo "run=true" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/setup-python@v5
-        if: steps.gate.outputs.run == 'true'
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - run: pip install -r requirements.txt
-        if: steps.gate.outputs.run == 'true'
-
+      - name: Install dependencies
+        run: pip install -r requirements.txt
       - name: Run bot cycle
-        if: steps.gate.outputs.run == 'true'
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-          SEED_MODE: "false"
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: "1"
-        run: |
-          success=false
-          for attempt in 1 2 3; do
-            echo "Attempt $attempt..."
-            if python run_once.py; then success=true; break; fi
-            if [ $attempt -lt 3 ]; then sleep 30; fi
-          done
-          [ "$success" = true ] || exit 1
-
-      - name: Save state files back to repo
-        if: steps.gate.outputs.run == 'true'
+        run: python run_once.py
+      - name: Commit state
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          mkdir -p /tmp/bot-state-backup
-          cp -f bot_state.json seen_jobs.json stats.json last_cycle.json /tmp/bot-state-backup/ 2>/dev/null || true
-          git fetch origin main
-          git reset --hard origin/main
-          cp -f /tmp/bot-state-backup/bot_state.json bot_state.json 2>/dev/null || true
-          cp -f /tmp/bot-state-backup/seen_jobs.json seen_jobs.json 2>/dev/null || true
-          cp -f /tmp/bot-state-backup/stats.json stats.json 2>/dev/null || true
-          cp -f /tmp/bot-state-backup/last_cycle.json last_cycle.json 2>/dev/null || true
-          git add bot_state.json seen_jobs.json stats.json last_cycle.json 2>/dev/null || true
+          git add -A
           git diff --staged --quiet || git commit -m "Update bot state [skip ci]"
-          git push origin main
-
-      - name: Cycle summary
-        if: steps.gate.outputs.run == 'true'
-        run: |
-          if [ -f last_cycle.json ]; then
-            echo "### Cycle report" >> $GITHUB_STEP_SUMMARY
-            cat last_cycle.json >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: Notify Telegram on failure
-        if: failure() && steps.gate.outputs.run == 'true'
+          git push || true
+      - name: Notify on failure
+        if: failure()
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: |
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
-            -d "text=❌ US Tax Mortgage Jobs Bot failed — check GitHub Actions" \
-            -d "parse_mode=Markdown" || true
+            -d "text=❌ Bot failed — check GitHub Actions" || true
