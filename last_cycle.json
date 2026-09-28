@@ -1,12 +1,12 @@
 {
-  "scraped": 274,
-  "india": 274,
-  "matched": 192,
-  "new": 0,
-  "sent": 0,
-  "seen_total": 420,
-  "fresh_today": 0,
+  "scraped": 642,
+  "india": 642,
+  "matched": 368,
+  "new": 15,
+  "sent": 15,
+  "seen_total": 434,
+  "fresh_today": 224,
   "telegram_ok": true,
   "telegram_detail": "getMe=200 getChat=200 {\"ok\":true,\"result\":{\"id\":-1003958916338,\"title\":\"US - Mortgage -Jobs\",\"username",
-  "at": "2026-09-27T23:56:43.856430"
+  "at": "2026-09-28T09:47:30.244661"
 }
