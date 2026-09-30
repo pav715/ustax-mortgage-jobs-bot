@@ -84,7 +84,10 @@ INDIAN_TAX_BLOCKLIST = re.compile(
     r"pan\s*number|aadhar|aadhaar|cin|gstin|"
     r"goods\s*and\s*services\s*tax|section\s*80|fy20[0-9]{2}|ay20[0-9]{2}|"
     r"tds|tcs|advance\s*tax|challan|saral|"
-    r"indian\s*tax|india\s*tax|ato"
+    r"gst|"
+    r"provident\s*fund|\bpf\s*(?:compliance|filing|deduction|withdrawal)|\besi\b|epfo|"
+    r"professional\s*tax|labour\s*welfare\s*fund|"
+    r"indian\s*tax|india\s*tax"
     r")\b",
     re.IGNORECASE,
 )
@@ -224,6 +227,27 @@ MORTGAGE_ROLE_TITLE = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+
+US_TAX_MORTGAGE_SIGNAL = re.compile(
+    r"\b("
+    r"tax\s*(?:lien|servic|escrow|certificate|compliance|reporting|document|form)|"
+    r"1098|form\s*1098|property\s*tax|escrow\s*tax|tax\s*impound|"
+    r"irs|hud|reg\s*[a-z]|truth\s*in\s*lending|respa|tila|"
+    r"1099|w-?2|w-?9|mortgage\s*interest\s*(?:statement|deduction)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _has_tax_relevance(blob):
+    """Require genuine tax-in-mortgage signal, not just an incidental 'tax' mention."""
+    if US_TAX_MORTGAGE_SIGNAL.search(blob):
+        return True
+    if re.search(r"\btax\b", blob, re.IGNORECASE):
+        # bare "tax" only counts alongside a real mortgage-tax-adjacent word
+        return bool(re.search(r"\b(escrow|servic|lien|compliance|reporting|1098|1099|property)\b", blob, re.IGNORECASE))
+    return False
+
 
 MORTGAGE_COMPANY_HINTS = re.compile(
     r"\b("
@@ -400,6 +424,8 @@ def is_mortgage_tax_job(job):
         return False
     if BLOCKLIST.search(title) or BLOCKLIST.search(company):
         return False
+    if not _has_tax_relevance(blob):
+        return False
 
     if _passes_mortgage_search_trust(job):
         print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: search keyword trust")
@@ -457,6 +483,7 @@ def is_mortgage_tax_job(job):
 
 
 def _mark_run_complete(state):
+    state["last_run_at_ist"] = _ist_now().isoformat()
     state["last_run_at"] = datetime.utcnow().isoformat()
     save_state(state)
 
@@ -493,22 +520,31 @@ def _job_posted_ist(job):
 
 def _cycle_cutoff_ist(state):
     """Jobs must be posted after last successful run (≈ last hour)."""
-    last = (state.get("last_run_at") or "").strip()
     now = _ist_now()
-    if last:
+    last_ist = (state.get("last_run_at_ist") or "").strip()
+    if last_ist:
         try:
-            return datetime.fromisoformat(last[:19]) + IST
+            return datetime.fromisoformat(last_ist[:19])
+        except Exception:
+            pass
+    # Backward-compat: old state files only stored last_run_at as raw UTC.
+    last_utc = (state.get("last_run_at") or "").strip()
+    if last_utc:
+        try:
+            return datetime.fromisoformat(last_utc[:19]) + IST
         except Exception:
             pass
     return now - timedelta(hours=1)
 
 
 def _passes_post_window(job, cutoff_ist=None):
-    """Today (IST) only — seen_jobs dedupe prevents repeat posts."""
+    """Job posted after last successful run (cutoff)."""
+    if not cutoff_ist:
+        cutoff_ist = _ist_now() - timedelta(hours=1)
     dt = _job_posted_ist(job)
     if not dt:
         return False
-    return dt.date() == _ist_now().date()
+    return dt >= cutoff_ist
 
 
 def load_state():
@@ -712,8 +748,11 @@ def main():
         log("Bot is PAUSED.")
         return
 
-    since_seconds = getattr(config, "SCRAPE_WINDOW_SECONDS", 86400)
-    log(f"Fetch window: {since_seconds // 3600} hours")
+    # Dynamic scrape window: fetch only jobs since last successful run (approx. 1 hour for hourly runs)
+    cutoff_ist = _cycle_cutoff_ist(state)
+    now_ist = _ist_now()
+    since_seconds = max(300, int((now_ist - cutoff_ist).total_seconds()))  # min 5 min
+    log(f"Fetch window: {since_seconds}s ({since_seconds // 60}m) — since last run at {cutoff_ist.strftime('%H:%M IST')}")
 
     seen = load_seen()
     try:
@@ -754,9 +793,9 @@ def main():
     log(f"Mortgage/Tax relevant: {len(matched_jobs)}")
 
     cutoff_ist = _cycle_cutoff_ist(state)
-    log(f"Post window: today IST only (cutoff ref {cutoff_ist.strftime('%Y-%m-%d %H:%M IST')})")
-    fresh_jobs = [j for j in matched_jobs if _passes_post_window(j)]
-    log(f"Posted today: {len(fresh_jobs)} (from {len(matched_jobs)} matched)")
+    log(f"Post window: since last run at {cutoff_ist.strftime('%Y-%m-%d %H:%M IST')}")
+    fresh_jobs = [j for j in matched_jobs if _passes_post_window(j, cutoff_ist)]
+    log(f"Posted since cutoff: {len(fresh_jobs)} (from {len(matched_jobs)} matched)")
 
     new_jobs = [j for j in fresh_jobs if not _is_seen(j, seen)]
     new_jobs.sort(key=lambda j: str(j.get("posted") or j.get("fetched_at") or ""))
