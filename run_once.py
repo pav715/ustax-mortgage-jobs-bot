@@ -1,4 +1,4 @@
-"""Single-cycle runner — US Tax Mortgage Jobs (Wells Fargo / Black Knight style roles)."""
+"""Single-cycle runner for GitHub Actions — LinkedIn only. Updated: 2026-07-04"""
 import json
 import os
 import re
@@ -9,13 +9,13 @@ from bs4 import BeautifulSoup
 from datetime import datetime, date, timedelta
 import config
 
-if sys.stdout.encoding != "utf-8":
-    sys.stdout.reconfigure(encoding="utf-8")
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8')
 from scraper import fetch_all_jobs, SESSION
-from sender import send_job, send_fail_alert
+from sender import send_job, send_daily_summary, send_fail_alert
 from experience_utils import extract_experience_from_job, pick_linkedin_criteria_experience
 
-SEEN_FILE = "seen_jobs.json"
+SEEN_FILE  = "seen_jobs.json"
 STATS_FILE = "stats.json"
 STATE_FILE = "bot_state.json"
 
@@ -43,229 +43,52 @@ def _check_telegram():
     except Exception as e:
         return False, str(e)
 
-BLOCKLIST = re.compile(
-    r"\b("
-    r"recruiter|recruitment|talent\s*acquisition|bench\s*sales|"
-    r"us\s*it\s*recruiter|it\s*recruiter|"
-    r"software\s*engineer(?!\s*(?:tax|mortgage))|software\s*developer(?!\s*(?:tax|mortgage))|"
-    r"selenium|automation\s*tester|manual\s*tester|"
-    r"construction\s*supervisor|site\s*supervisor|civil\s*engineer|"
-    r"payroll(?!\s*tax)|accounts\s*payable|accounts\s*receivable|"
-    r"statutory\s*audit|business\s*development|sales\s*executive|"
-    r"\bgst\b|goods\s*and\s*services\s*tax|gstn|gst\s*compliance|gst\s*specialist|"
-    r"income\s*tax\s*(?!withholding)|income\s*tax\s*consultant|income\s*tax\s*executive|"
-    r"direct\s*tax(?!\s*analyst\s*(?:us|federal|state))|india\s*tax|domestic\s*tax|indian\s*tax|"
-    r"\btds\b|\btcs\b|tax\s*deducted|tax\s*collected|tds\s*analyst|"
-    r"indirect\s*tax(?!\s*analyst\s*(?:us|federal))|"
-    r"\bvat\b(?!\s*us)|service\s*tax|excise\s*duty|customs\s*duty|"
-    r"transfer\s*pricing|tax\s*litigation|"
-    r"chartered\s*accountant|ca\s*article|ca\s*analyst|"
-    r"accounts\s*analyst|^accountant$|"
-    r"finance\s*executive|accounts\s*executive|"
-    r"tax\s*auditor|statutory\s*compliance"
-    r")\b",
-    re.IGNORECASE,
-)
-
-INDIAN_TAX_BLOCKLIST = re.compile(
-    r"\b("
-    r"gst\s*analyst|gst\s*compliance|gst\s*executive|gst\s*specialist|gst\s*manager|"
-    r"gst\s*consultant|gst\s*filing|gst\s*returns|gst\s*audit|gst\s*advisory|"
-    r"income\s*tax\s*analyst|income\s*tax\s*consultant|income\s*tax\s*executive|"
-    r"direct\s*tax\s*analyst|direct\s*tax\s*consultant|direct\s*tax\s*manager|"
-    r"india\s*tax\s*analyst|india\s*tax\s*consultant|domestic\s*tax|"
-    r"tds\s*analyst|tds\s*compliance|tcs\s*analyst|tds\s*executive|tds\s*filing|"
-    r"indirect\s*tax\s*analyst|indirect\s*tax\s*consultant|indirect\s*tax\s*manager|"
-    r"vat\s*analyst|service\s*tax|excise\s*duty|customs\s*duty|"
-    r"tax\s*litigation|indirect\s*tax\s*specialist|"
-    r"tax\s*auditor|transfer\s*pricing|"
-    r"itr|itr-1|itr-2|itr-3|itr-4|itr-5|itr-6|itr-7|"
-    r"form\s*16|form\s*16a|form\s*24q|"
-    r"pan\s*number|aadhar|aadhaar|cin|gstin|"
-    r"goods\s*and\s*services\s*tax|section\s*80|fy20[0-9]{2}|ay20[0-9]{2}|"
-    r"tds|tcs|advance\s*tax|challan|saral|"
-    r"gst|"
-    r"provident\s*fund|\bpf\s*(?:compliance|filing|deduction|withdrawal)|\besi\b|epfo|"
-    r"professional\s*tax|labour\s*welfare\s*fund|"
-    r"indian\s*tax|india\s*tax"
-    r")\b",
-    re.IGNORECASE,
-)
-
-# 100 keywords + 50 title keywords — loan / mortgage / financial services
-MORTGAGE_KEYWORDS = [
-    # Financial / Loan (1–20)
-    "financial analysis", "loan lifecycle", "loan portfolio", "loan management",
-    "loan processing", "loan approval", "loan documentation", "credit risk assessment",
-    "credit analysis", "credit pack", "credit policy", "loan portfolio management",
-    "portfolio review", "portfolio analysis", "portfolio performance", "loan origination",
-    "loan servicing", "loan underwriting", "mortgage operations", "mortgage processing",
-    # Analysis / Reporting (21–40)
-    "financial modelling", "variance analysis", "mis reporting", "financial reporting",
-    "dashboard reporting", "performance metrics", "financial data analysis", "data analysis",
-    "business intelligence", "risk exposure", "delinquency analysis", "delinquency trends",
-    "financial indicators", "key performance indicators", "exception handling", "trend analysis",
-    "benchmarking analysis", "comparative analysis", "forecasting", "budget analysis",
-    # Compliance / Regulatory (41–60)
-    "regulatory compliance", "compliance monitoring", "federal regulations", "state regulations",
-    "regulatory requirements", "regulatory updates", "regulatory reporting", "compliance standards",
-    "credit policy adherence", "policy compliance", "risk management", "risk mitigation",
-    "internal controls", "audit compliance", "sox compliance", "anti-money laundering",
-    "know your customer", "regulatory guidelines", "compliance framework", "risk assessment",
-    # Operations / Process (61–80)
-    "document management", "credit pack indexing", "document indexing", "pdf processing",
-    "document processing", "data management", "database management", "data integrity",
-    "data quality", "remote desktop operations", "production environment", "process documentation",
-    "process improvement", "process optimization", "workflow management", "quality control",
-    "quality assurance", "standard operating procedures", "process compliance",
-    # Banking / Companies (81–90)
-    "wells fargo", "black knight", "mortgage banking", "commercial banking", "retail banking",
-    "investment banking", "banking operations", "banking systems", "financial services",
-    # Coordination / Management (91–100)
-    "cross-functional coordination", "stakeholder management", "stakeholder reporting",
-    "team collaboration", "team training", "knowledge management", "process training",
-    "cost monitoring", "exception management", "workflow planning",
-    # Mortgage-specific (retained)
-    "mortgage", "home loan", "housing loan", "escrow", "foreclosure", "hmda",
-    "fannie mae", "freddie mac", "loss mitigation", "default servicing", "msr", "mers",
-    "property tax escrow", "1098", "mortgage tax", "tax servicing", "subservicing",
-    # Title keywords (50 roles)
-    "financial analyst", "senior financial analyst", "junior financial analyst",
-    "financial data analyst", "financial modelling analyst", "financial operations analyst",
-    "financial planning analyst", "financial performance analyst", "financial systems analyst",
-    "financial reporting analyst", "loan analyst", "senior loan analyst", "credit analyst",
-    "senior credit analyst", "credit risk analyst", "loan operations analyst",
-    "loan documentation analyst", "loan processing analyst", "mortgage analyst",
-    "mortgage operations analyst", "compliance analyst", "senior compliance analyst",
-    "regulatory compliance analyst", "risk analyst", "senior risk analyst",
-    "portfolio risk analyst", "compliance officer", "regulatory affairs analyst",
-    "audit analyst", "internal compliance analyst", "operations analyst",
-    "senior operations analyst", "mis analyst", "business analyst", "process analyst",
-    "process improvement analyst", "quality assurance analyst", "banking operations analyst",
-    "finance operations analyst", "process associate", "senior process associate",
-    "process manager", "team lead", "operations manager", "portfolio manager",
-    "relationship manager", "account manager", "project analyst", "document analyst",
-    # Expanded mortgage / loan titles
-    "mortgage underwriter", "mortgage loan officer", "mortgage closer", "mortgage post closer",
-    "escrow analyst", "foreclosure analyst", "loss mitigation analyst", "default servicing analyst",
-    "hmda analyst", "msr analyst", "home loan analyst", "housing loan analyst",
-    "loan origination analyst", "commercial loan analyst", "consumer loan analyst",
-    "credit pack analyst", "credit policy analyst", "mortgage quality analyst",
-    "mortgage document analyst", "mortgage risk analyst", "regulatory reporting analyst",
-    "aml analyst", "kyc analyst", "sox compliance analyst", "workflow analyst",
-    "document indexing analyst", "credit pack indexing", "loan servicing specialist",
-    "mortgage servicing specialist", "servicing analyst", "reo analyst", "collection analyst mortgage",
-    "fannie mae analyst", "freddie mac analyst", "subservicing analyst", "mers analyst",
-    "property tax escrow analyst", "1098 analyst", "mortgage tax analyst",
+US_TAX_KEYWORDS = [
+    # Tax Forms (1–25)
+    "form 1040", "form 1040nr", "form 1040sr", "form 1041", "form 1120", "form 1120s",
+    "form 1065", "form 990", "form 1099", "w-2", "w-4", "schedule a", "schedule b",
+    "schedule c", "schedule d", "schedule e", "schedule f", "schedule k-1", "schedule se",
+    "form 2441", "form 8863", "form 8949", "form 1098", "form 1095", "1040 preparation",
+    # IRS / Regulatory (26–40)
+    "irs", "irs guidelines", "irs regulations", "irs compliance", "department of revenue",
+    "dor", "federal tax", "state tax", "tax compliance", "tax law", "tax code",
+    "tax reform", "tax withholding", "tax liability", "tax deductions",
+    # Preparation Process (41–55)
+    "tax preparation", "tax return preparation", "tax filing", "tax review", "tax reviewer",
+    "tax return review", "quality review", "tax advisory", "client returns", "tax planning",
+    "tax research", "tax compliance review", "return review", "tax processing", "tax engagement",
+    # Tax Software (56–70)
+    "lacerte", "proseries", "gosystem", "onesource", "ultratax", "cch axcess",
+    "prosystem fx", "drake", "atx", "taxwise", "taxact", "taxslayer", "proconnect",
+    "crosslink", "h&r block",
+    # Entity Types (71–80)
+    "individual tax", "corporate tax", "partnership tax", "s-corporation", "fiduciary tax",
+    "non-resident tax", "trust tax", "estate tax", "exempt organization", "self-employed tax",
+    # Income Types (81–90)
+    "w-2 income", "1099 income", "rental income", "business income", "capital gains",
+    "dividend income", "interest income", "self-employment income", "foreign income", "passive income",
+    # Skills/Process (91–100)
+    "regulatory compliance", "multi-state filing", "federal compliance", "state compliance",
+    "tax deadline", "tax documentation", "client interaction", "tax strategy", "tax accuracy",
+    # Title keywords (Top 50 roles)
+    "us tax preparer", "tax preparer", "senior tax preparer", "individual tax preparer",
+    "tax return preparer", "tax preparation specialist", "tax filing specialist",
+    "tax preparation analyst", "tax return specialist", "federal tax preparer",
+    "tax analyst", "us tax analyst", "senior tax analyst", "tax compliance analyst",
+    "us tax compliance analyst", "federal tax analyst", "state tax analyst",
+    "tax research analyst", "tax technical analyst", "tax operations analyst",
+    "tax reviewer", "senior tax reviewer", "tax review analyst", "tax quality reviewer",
+    "tax return reviewer", "tax compliance reviewer", "tax audit reviewer",
+    "tax technical reviewer", "qa associate us tax forms", "tax senior reviewer",
+    "tax associate", "senior tax associate", "tax staff associate", "us tax associate",
+    "tax associate analyst", "tax associate consultant", "tax associate specialist",
+    "junior tax associate", "tax process associate", "tax compliance associate",
+    "tax consultant", "us tax consultant", "senior tax consultant", "tax advisory consultant",
+    "tax compliance consultant", "tax technology consultant", "tax planning consultant",
+    "tax transformation consultant", "tax digital consultant", "tax process consultant",
+    # US Tax context
+    "us tax", "us taxation", "u.s. tax", "enrolled agent", "cpa tax",
 ]
-
-# Loan / mortgage / financial services signal — generic titles need one of these
-REQUIRED_MORTGAGE_SIGNAL = re.compile(
-    r"\b("
-    r"mortgage|(?:\b|\s)loan\b|(?:\b|\s)credit\b|loan\s*servic|loan\s*process|loan\s*document|"
-    r"loan\s*lifecycle|loan\s*portfolio|loan\s*underwrit|loan\s*originat|"
-    r"credit\s*pack|credit\s*risk|document\s*index|credit\s*analysis|"
-    r"wells\s*fargo|black\s*knight|mortgage\s*bank|banking\s*operat|"
-    r"financial\s*services|loan\s*management|servicing|delinquency|"
-    r"escrow|foreclosure|mortgage\s*operat|regulatory\s*compliance|"
-    r"compliance\s*monitor|risk\s*management|portfolio\s*risk|"
-    r"hmda|msr|mers|fannie\s*mae|freddie\s*mac|subservic|reo|"
-    r"mortgage\s*clos|loan\s*clos|escrow|foreclosure|loss\s*mitigation|"
-    r"aml|kyc|sox|regulatory\s*reporting|home\s*loan|housing\s*loan"
-    r")\b",
-    re.IGNORECASE,
-)
-
-# Generic titles — need loan/mortgage signal in full text
-GENERIC_FINANCE_TITLE = re.compile(
-    r"\b("
-    r"financial\s*analyst|financial\s*data\s*analyst|financial\s*modelling\s*analyst|"
-    r"financial\s*planning\s*analyst|financial\s*performance\s*analyst|"
-    r"financial\s*systems\s*analyst|financial\s*reporting\s*analyst|"
-    r"operations\s*analyst|mis\s*analyst|data\s*analyst|business\s*analyst|"
-    r"process\s*analyst|process\s*improvement\s*analyst|quality\s*assurance\s*analyst|"
-    r"process\s*associate|process\s*manager|team\s*lead|operations\s*manager|"
-    r"portfolio\s*manager|relationship\s*manager|account\s*manager|"
-    r"project\s*analyst|document\s*analyst|audit\s*analyst"
-    r")\b",
-    re.IGNORECASE,
-)
-
-MORTGAGE_ROLE_TITLE = re.compile(
-    r"\b("
-    # Financial Analyst (1–10)
-    r"(?:senior|junior|financial\s*)?financial\s*(?:data|modelling|operations|planning|performance|systems|reporting)?\s*analyst|"
-    # Loan / Credit (11–20)
-    r"(?:senior\s*)?loan\s*analyst|(?:senior\s*)?credit\s*(?:risk\s*)?analyst|"
-    r"loan\s*(?:operations|documentation|processing)\s*analyst|"
-    r"mortgage\s*(?:operations\s*)?analyst|"
-    # Compliance / Risk (21–30)
-    r"(?:senior\s*|regulatory\s*|internal\s*)?compliance\s*(?:analyst|officer)|"
-    r"regulatory\s*(?:compliance|affairs)\s*analyst|"
-    r"(?:senior\s*|portfolio\s*)?risk\s*analyst|audit\s*analyst|"
-    # Operations / MIS (31–40)
-    r"(?:senior\s*)?operations\s*analyst|mis\s*analyst|"
-    r"(?:banking|finance)\s*operations\s*analyst|"
-    r"process\s*(?:improvement\s*)?analyst|quality\s*assurance\s*analyst|"
-    # Process / Management (41–50)
-    r"(?:senior\s*)?process\s*(?:associate|manager)|"
-    r"team\s*lead|operations\s*manager|portfolio\s*manager|"
-    r"relationship\s*manager|account\s*manager|project\s*analyst|document\s*analyst|"
-    # Mortgage / loan core (retained)
-    r"mortgage|home\s*loan|housing\s*loan|loan\s*servic(?:ing|er)?|"
-    r"mortgage\s*underwrit(?:ing|er)?|underwrit(?:ing|er)|"
-    r"mortgage\s*loan\s*(?:originator|officer|processor)|"
-    r"mortgage\s*(?:specialist|associate|consultant|banking|operat(?:ions?|ional)?)|"
-    r"loan\s*(?:officer|originator|processor|admin(?:istrator)?)|"
-    r"process\s*associate|credit\s*pack|document\s*index|"
-    r"escrow|foreclosure|loss\s*mitigation|default\s*servic(?:ing|er)?|"
-    r"mortgage\s*tax|tax\s*servic(?:ing|er)?|property\s*tax|1098|"
-    r"mortgage\s*(?:closer|post\s*closer|underwrit(?:er|ing)?|loan\s*officer|quality)|"
-    r"home\s*loan|housing\s*loan|hmda|msr|mers|reo|subservic|"
-    r"fannie\s*mae|freddie\s*mac|loan\s*originat|commercial\s*loan|consumer\s*loan|"
-    r"aml|kyc|sox\s*compliance|regulatory\s*reporting|servicing\s*analyst"
-    r")\b",
-    re.IGNORECASE,
-)
-
-US_TAX_MORTGAGE_SIGNAL = re.compile(
-    r"\b("
-    r"tax\s*(?:lien|servic|escrow|certificate|compliance|reporting|document|form)|"
-    r"1098|form\s*1098|property\s*tax|escrow\s*tax|tax\s*impound|"
-    r"irs|hud|reg\s*[a-z]|truth\s*in\s*lending|respa|tila|"
-    r"1099|w-?2|w-?9|mortgage\s*interest\s*(?:statement|deduction)"
-    r")\b",
-    re.IGNORECASE,
-)
-
-
-def _has_tax_relevance(blob):
-    """Require genuine tax-in-mortgage signal, not just an incidental 'tax' mention."""
-    if US_TAX_MORTGAGE_SIGNAL.search(blob):
-        return True
-    if re.search(r"\btax\b", blob, re.IGNORECASE):
-        # bare "tax" only counts alongside a real mortgage-tax-adjacent word
-        return bool(re.search(r"\b(escrow|servic|lien|compliance|reporting|1098|1099|property)\b", blob, re.IGNORECASE))
-    return False
-
-
-MORTGAGE_COMPANY_HINTS = re.compile(
-    r"\b("
-    r"wells\s*fargo|black\s*knight|ice\s*mortgage|intercontinental\s*exchange|"
-    r"mr\.?\s*cooper|servicemac|cenlar|loancare|roundpoint|nationstar|"
-    r"pennymac|flagstar|shellpoint|dovenmuehle|phh\s*mortgage|ocwen|"
-    r"caliber\s*home|computershare|fis\s|fidelity\s*national|fnf|"
-    r"rocket\s*mortgage|quicken\s*loans|uwm|united\s*wholesale|"
-    r"loan\s*care|specialized\s*loan|selene|cooper\s*holdings|"
-    r"american\s*home\s*mortgage|freedom\s*mortgage|newrez|"
-    r"maxim\s*capital|dmi\s*mortgage|mortgage\s*connect|"
-    r"docutech|lendsmart|nationwide\s*title|stewart\s*title|"
-    r"cenlar|loancare|mr\.?\s*cooper|servicemac|rocket\s*mortgage|"
-    r"pennymac|flagstar|newrez|freedom\s*mortgage|uwm|quicken\s*loans"
-    r")\b",
-    re.IGNORECASE,
-)
-
 
 INDIA_LOCATION_KEYWORDS = [
     "india", "hyderabad", "bangalore", "bengaluru", "chennai", "mumbai", "pune", "delhi",
@@ -278,6 +101,100 @@ FOREIGN_LOCATION_KEYWORDS = [
     "egypt", "middle east", "africa", "singapore", "malaysia", "sweden", "sverige", "japan",
     "dubai", "germany", "france",
 ]
+
+BLOCKLIST = re.compile(
+    r"\b("
+    r"recruiter|recruitment|talent\s*acquisition|bench\s*sales|"
+    r"us\s*it\s*recruiter|it\s*recruiter|"
+    r"software\s*engineer(?!\s*tax)|software\s*developer(?!\s*tax)|"
+    r"selenium|automation\s*tester|manual\s*tester|"
+    r"payroll(?!\s*tax)|accounts\s*payable|accounts\s*receivable|"
+    r"statutory\s*audit|business\s*development|sales\s*executive|"
+    # Indian tax roles - GST (1-10)
+    r"\bgst\b|goods\s*and\s*services\s*tax|gstn|gst\s*compliance|gst\s*specialist|gst\s*manager|gst\s*consultant|gst\s*filing|gst\s*returns|gst\s*audit|gst\s*advisory|"
+    # Income Tax India (11-20)
+    r"income\s*tax\s*(?!withholding)|income\s*tax\s*consultant|income\s*tax\s*executive|"
+    r"direct\s*tax(?!\s*analyst\s*(?:us|federal|state))|india\s*tax|domestic\s*tax|indian\s*tax|"
+    # TDS / TCS (21-25)
+    r"\btds\b|\btcs\b|tax\s*deducted|tax\s*collected|tds\s*analyst|tds\s*filing|"
+    # Indirect Tax India (26-35)
+    r"indirect\s*tax(?!\s*analyst\s*(?:us|federal))|"
+    r"\bvat\b(?!\s*us)|service\s*tax|excise\s*duty|customs\s*duty|"
+    r"transfer\s*pricing|tax\s*litigation|"
+    # CA / Finance Related (36-45)
+    r"chartered\s*accountant|ca\s*article|ca\s*analyst|"
+    r"(?<!us\s)(?<!federal\s)finance\s*analyst(?!\s*us)|accounts\s*analyst|^accountant$|"
+    r"financial\s*analyst(?!\s*(?:us|tax))|finance\s*executive|accounts\s*executive|"
+    # Other Indian Tax (46-50)
+    r"tax\s*auditor|statutory\s*compliance|tax\s*compliance\s*executive(?!\s*us)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# STRICT: Reject all Indian tax roles - no US Tax jobs should have these keywords
+# Title match — US Tax roles (primary accept rule)
+US_TAX_TITLE = re.compile(
+    r"\b("
+    # Preparer (1–10)
+    r"(?:us|u\.s\.|federal|individual|senior)\s*tax\s*prepar(?:er|ation)|"
+    r"tax\s*prepar(?:er|ation)|tax\s*return\s*prepar(?:er|ation)?|"
+    r"tax\s*filing\s*specialist|tax\s*preparation\s*(?:specialist|analyst)|"
+    r"tax\s*return\s*specialist|"
+    # Analyst (11–20)
+    r"(?:us|u\.s\.|federal|state|senior)\s*tax\s*analyst|"
+    r"tax\s*(?:compliance|research|technical|operations)\s*analyst|"
+    r"tax\s*analyst|"
+    # Reviewer (21–30)
+    r"(?:senior|quality|return|compliance|audit|technical)?\s*tax\s*review(?:er|ing)?|"
+    r"tax\s*review\s*analyst|tax\s*senior\s*reviewer|"
+    r"qa\s*associate.{0,20}(?:us\s*)?tax\s*forms|"
+    # Associate (31–40)
+    r"(?:us|u\.s\.|senior|junior|staff|process|compliance)\s*tax\s*associate|"
+    r"tax\s*associate(?:\s*(?:analyst|consultant|specialist))?|"
+    # Consultant (41–50)
+    r"(?:us|u\.s\.|senior)\s*tax\s*consultant|"
+    r"tax\s*(?:advisory|compliance|technology|planning|transformation|digital|process)\s*consultant|"
+    r"tax\s*consultant|"
+    # US Tax general
+    r"u\.?\s*s\.?\s*tax(?:ation)?|us\s*tax(?:ation)?|"
+    r"enrolled\s*agent|cpa\s*(?:us\s*)?tax|tax\s*cpa"
+    r")\b",
+    re.IGNORECASE,
+)
+
+INDIAN_TAX_BLOCKLIST = re.compile(
+    r"\b("
+    # GST Related (1-10) — includes bare "gst" now
+    r"gst|gst\s*analyst|gst\s*compliance|gst\s*executive|gst\s*specialist|gst\s*manager|"
+    r"gst\s*consultant|gst\s*filing|gst\s*returns|gst\s*audit|gst\s*advisory|gstin|"
+    # Income Tax India (11-20)
+    r"income\s*tax\s*analyst|income\s*tax\s*consultant|income\s*tax\s*executive|"
+    r"direct\s*tax\s*analyst|direct\s*tax\s*consultant|direct\s*tax\s*manager|"
+    r"india\s*tax\s*analyst|india\s*tax\s*consultant|domestic\s*tax|"
+    # TDS / TCS (21-25)
+    r"tds\s*analyst|tds\s*compliance|tcs\s*analyst|tds\s*executive|tds\s*filing|"
+    # Indirect Tax India (26-35)
+    r"indirect\s*tax\s*analyst|indirect\s*tax\s*consultant|indirect\s*tax\s*manager|"
+    r"vat\s*analyst|service\s*tax|excise\s*duty|customs\s*duty|"
+    r"tax\s*litigation|indirect\s*tax\s*specialist|"
+    # Other Indian Tax (46-50)
+    r"tax\s*auditor|tax\s*litigation\s*specialist|transfer\s*pricing|"
+    r"tax\s*compliance\s*executive|statutory\s*compliance|"
+    # Indian payroll / statutory terms not tax-titled but India-only context
+    r"provident\s*fund|\bpf\s*(?:compliance|filing|deduction|withdrawal)|\besi\b|epfo|"
+    r"professional\s*tax|labour\s*welfare\s*fund|"
+    # Keywords that indicate Indian context
+    r"itr|itr-1|itr-2|itr-3|itr-4|itr-5|itr-6|itr-7|"
+    r"form\s*16|form\s*16a|form\s*24q|"
+    r"pan\s*number|aadhar|aadhaar|\bcin\b|"
+    r"goods\s*and\s*services\s*tax|section\s*80|fy20[0-9]{2}|ay20[0-9]{2}|"
+    r"tds|tcs|advance\s*tax|challan|saral|"
+    r"indian\s*tax|india\s*tax"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
 
 
 def _keyword_hits(text, keywords):
@@ -334,13 +251,27 @@ def is_india_location(job):
     return False
 
 
-_MORTGAGE_INTENT = re.compile(
-    r"\b(mortgage|loan|credit|servicing|underwrit|financial|compliance|risk|banking|escrow|foreclosure|portfolio)\b",
-    re.IGNORECASE,
-)
+def _passes_early_filter(job, role_title_pattern):
+    title = job.get("title") or ""
+    company = job.get("company") or ""
+    sk = job.get("search_keyword") or ""
+    title_l = title.lower()
+    company_l = company.lower()
+    if INDIAN_TAX_BLOCKLIST.search(title_l) or INDIAN_TAX_BLOCKLIST.search(company_l):
+        return False
+    if BLOCKLIST.search(title_l) or BLOCKLIST.search(company_l):
+        return False
+    if re.search(r"\btax\b", title_l):
+        return True
+    if sk and _title_matches_search(title, sk):
+        return True
+    if role_title_pattern.search(title_l):
+        return True
+    return False
 
 
 def _title_matches_search(title, keyword):
+    """Require the domain word AND at least one other substantive keyword word in the title."""
     if not title or not keyword:
         return False
     tl = title.lower()
@@ -349,72 +280,20 @@ def _title_matches_search(title, keyword):
         "mortgage", "loan", "credit", "tax", "servicing", "underwrit",
         "financial", "compliance", "testing", "software", "banking", "escrow",
     )
-    for d in domain_words:
-        if d in kw_l:
-            return d in tl
     words = [w for w in re.findall(r"[a-z]+", kw_l) if len(w) > 3]
+    matched_domain = next((d for d in domain_words if d in kw_l), None)
+    if matched_domain:
+        if matched_domain not in tl:
+            return False
+        other_words = [w for w in words if w not in matched_domain and matched_domain not in w]
+        if not other_words:
+            return True
+        return any(w in tl for w in other_words)
     return bool(words) and all(w in tl for w in words)
 
 
-def _passes_mortgage_search_trust(job):
-    """Trust LinkedIn mortgage/loan keyword search when title aligns."""
-    sk = (job.get("search_keyword") or "")
-    sk_l = sk.lower()
-    title = (job.get("title") or "").lower()
-    if not sk_l or not _MORTGAGE_INTENT.search(sk_l):
-        return False
-    if INDIAN_TAX_BLOCKLIST.search(title) or BLOCKLIST.search(title):
-        return False
-    if _MORTGAGE_INTENT.search(title):
-        return True
-    if _title_matches_search(job.get("title", ""), sk):
-        return True
-    if re.search(
-        r"\b(analyst|specialist|associate|officer|underwriter|processor|closer|servicing|manager|lead|consultant)\b",
-        title,
-    ):
-        return True
-    return False
-
-
-def _passes_early_filter(job, role_title_pattern):
-    """Only let likely mortgage/loan roles through before enrich."""
-    title = job.get("title") or ""
-    company = job.get("company") or ""
-    title_l = title.lower()
-    company_l = company.lower()
-    sk = (job.get("search_keyword") or "").lower()
-    if INDIAN_TAX_BLOCKLIST.search(title_l) or INDIAN_TAX_BLOCKLIST.search(company_l):
-        return False
-    if BLOCKLIST.search(title_l) or BLOCKLIST.search(company_l):
-        return False
-    if _passes_mortgage_search_trust(job):
-        return True
-    if sk and _MORTGAGE_INTENT.search(sk) and (_title_matches_search(title, sk) or _MORTGAGE_INTENT.search(title_l)):
-        return True
-    if MORTGAGE_COMPANY_HINTS.search(company_l):
-        return True
-    if re.search(
-        r"\b(mortgage|loan|credit|servicing|underwrit|escrow|foreclosure|home\s*loan|housing\s*loan|financial\s*services)\b",
-        title_l,
-    ):
-        return True
-    if role_title_pattern.search(title_l):
-        if GENERIC_FINANCE_TITLE.search(title_l):
-            return bool(
-                MORTGAGE_COMPANY_HINTS.search(company_l)
-                or re.search(r"\b(mortgage|loan|credit|banking|financial\s*services)\b", title_l)
-            )
-        return True
-    return False
-
-
-def _has_mortgage_signal(text):
-    return bool(REQUIRED_MORTGAGE_SIGNAL.search(text))
-
-
-def is_mortgage_tax_job(job):
-    """50 loan/financial services titles + 100 keywords — generic titles need loan signal."""
+def is_us_tax_job(job):
+    """Accept US Tax titled roles first; then keyword match in full text."""
     desc = (job.get("description") or "").lower()
     title = (job.get("title") or "").lower()
     company = (job.get("company") or "").lower()
@@ -422,61 +301,34 @@ def is_mortgage_tax_job(job):
 
     if INDIAN_TAX_BLOCKLIST.search(title) or INDIAN_TAX_BLOCKLIST.search(company):
         return False
-    if BLOCKLIST.search(title) or BLOCKLIST.search(company):
-        return False
-    if not _has_tax_relevance(blob):
-        return False
-
-    if _passes_mortgage_search_trust(job):
-        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: search keyword trust")
-        return True
 
     sk = (job.get("search_keyword") or "")
-    sk_l = sk.lower()
-    # Title-based pass without description (avoids LinkedIn enrich rate limits)
-    if re.search(
-        r"\b(mortgage|loan|credit|servicing|underwrit|escrow|foreclosure|home\s*loan|housing\s*loan|financial)\b",
-        title,
-    ):
-        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: loan/mortgage title")
-        return True
-    if sk_l and _MORTGAGE_INTENT.search(sk_l) and _title_matches_search(title, sk):
-        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: search keyword")
-        return True
+    if sk and "tax" in sk.lower() and re.search(r"\btax\b", title):
+        if not BLOCKLIST.search(title) and not INDIAN_TAX_BLOCKLIST.search(blob):
+            if _title_matches_search(title, sk) or US_TAX_TITLE.search(title):
+                print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: search keyword + tax")
+                return True
 
-    if MORTGAGE_ROLE_TITLE.search(title):
+    if US_TAX_TITLE.search(title):
         if BLOCKLIST.search(title) or BLOCKLIST.search(company):
             return False
-        if GENERIC_FINANCE_TITLE.search(title) and not _has_mortgage_signal(blob):
-            if not re.search(r"\b(loan|credit|mortgage|compliance|risk|banking|financial)\b", title):
-                return False
-        elif not _has_mortgage_signal(blob) and not MORTGAGE_COMPANY_HINTS.search(company):
-            # Loan-specific titles (credit/loan/mortgage/compliance) pass without extra signal
-            if not re.search(
-                r"\b(loan|credit|mortgage|compliance|risk|banking\s*operat|finance\s*operat)\b",
-                title,
-            ):
-                return False
-        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: mortgage role title")
-        return True
-
-    if MORTGAGE_COMPANY_HINTS.search(company):
-        if BLOCKLIST.search(title) or BLOCKLIST.search(company):
+        if INDIAN_TAX_BLOCKLIST.search(blob):
             return False
-        if MORTGAGE_ROLE_TITLE.search(title) or _has_mortgage_signal(blob):
-            print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: mortgage company")
-            return True
-        return False
+        print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: us tax title")
+        return True
 
     if BLOCKLIST.search(blob):
         return False
     if INDIAN_TAX_BLOCKLIST.search(blob):
         return False
-    if not _has_mortgage_signal(blob):
-        return False
 
-    matched = _keyword_hits(blob, MORTGAGE_KEYWORDS)
-    if len(matched) >= 1:
+    # Require the literal word "tax" plus at least 2 strong US-tax signals —
+    # prevents generic HR boilerplate ("regulatory compliance", "quality review")
+    # from passing on a single weak keyword hit with no real tax content.
+    if not re.search(r"\btax\b", blob):
+        return False
+    matched = _keyword_hits(blob, US_TAX_KEYWORDS)
+    if len(matched) >= 2:
         print(f"DEBUG: '{job.get('title')}' @ {job.get('company')} matched: {matched}")
         return True
     return False
@@ -581,9 +433,10 @@ def save_stats(stats):
 
 
 def load_seen():
+    """Load seen job IDs. Handles [], {}, and corrupt files gracefully."""
     if os.path.exists(SEEN_FILE):
         try:
-            with open(SEEN_FILE) as f:
+            with open(SEEN_FILE, "r") as f:
                 data = json.load(f)
             if isinstance(data, list):
                 return set(data)
@@ -595,12 +448,14 @@ def load_seen():
 
 
 def save_seen(seen_set):
+    data = list(seen_set)[-5000:]
     with open(SEEN_FILE, "w") as f:
-        json.dump(list(seen_set)[-5000:], f)
+        json.dump(data, f)
 
 
 def log(msg):
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{ts}] {msg}")
 
 
 def _norm_dedup_text(s):
@@ -643,18 +498,20 @@ def handle_commands(state, stats):
         if r.status_code != 200:
             return state
 
-        for update in r.json().get("result", []):
+        updates = r.json().get("result", [])
+        for update in updates:
             state["last_update_id"] = update["update_id"]
-            msg = update.get("message") or update.get("channel_post") or {}
+            msg = (update.get("message") or update.get("channel_post") or {})
             text = msg.get("text", "").strip().lower()
             chat_id = str(msg.get("chat", {}).get("id", ""))
             if not chat_id or chat_id != str(config.CHAT_ID):
                 continue
 
             api = f"https://api.telegram.org/bot{config.BOT_TOKEN}/sendMessage"
+
             if text.startswith("/status"):
                 reply = (
-                    f"🏠 *US Tax Mortgage Jobs Bot — Status*\n\n"
+                    f"🤖 *US Tax Jobs Bot — Status*\n\n"
                     f"{'⏸ PAUSED' if state.get('paused') else '✅ RUNNING'}\n\n"
                     f"📊 *Today ({stats['date']}):*\n"
                     f"• Jobs sent: *{stats['sent']}*\n"
@@ -665,29 +522,27 @@ def handle_commands(state, stats):
                 requests.post(api, json={"chat_id": chat_id, "text": reply, "parse_mode": "Markdown"}, timeout=10)
             elif text == "/pause":
                 state["paused"] = True
-                requests.post(api, json={"chat_id": chat_id, "text": "⏸ *Bot paused.*", "parse_mode": "Markdown"}, timeout=10)
+                requests.post(api, json={"chat_id": chat_id, "text": "⏸ *Bot paused.* Send /resume to restart.", "parse_mode": "Markdown"}, timeout=10)
             elif text == "/resume":
                 state["paused"] = False
-                requests.post(api, json={"chat_id": chat_id, "text": "▶️ *Bot resumed.*", "parse_mode": "Markdown"}, timeout=10)
+                requests.post(api, json={"chat_id": chat_id, "text": "▶️ *Bot resumed.* Notifications are back on.", "parse_mode": "Markdown"}, timeout=10)
             elif text == "/help":
-                requests.post(
-                    api,
-                    json={"chat_id": chat_id, "text": "🤖 /status /pause /resume /help", "parse_mode": "Markdown"},
-                    timeout=10,
-                )
+                reply = "🤖 *Commands:*\n/status — Bot status\n/pause — Pause\n/resume — Resume\n/help — Help"
+                requests.post(api, json={"chat_id": chat_id, "text": reply, "parse_mode": "Markdown"}, timeout=10)
     except Exception as e:
         log(f"[Commands] Error: {e}")
     return state
 
 
 def enrich_job(job):
+    """Fetch full job description from LinkedIn detail page."""
     if job.get("description") and len(job["description"]) > 200:
         return job
     url = job.get("url", "")
     fetched = False
     try:
         if "linkedin.com" in url:
-            match = re.search(r"/(\d{8,})", url)
+            match = re.search(r'/(\d{8,})', url)
             if match:
                 jid = match.group(1)
                 detail_url = f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{jid}"
@@ -695,8 +550,8 @@ def enrich_job(job):
                 if r.status_code == 200:
                     soup = BeautifulSoup(r.content, "html.parser")
                     desc_div = (
-                        soup.find("div", class_=re.compile(r"show-more-less-html|description__text"))
-                        or soup.find("section", class_=re.compile(r"description"))
+                        soup.find("div", class_=re.compile(r"show-more-less-html|description__text")) or
+                        soup.find("section", class_=re.compile(r"description"))
                     )
                     if desc_div:
                         job["description"] = desc_div.get_text(" ", strip=True)[:4000]
@@ -716,36 +571,38 @@ def extract_experience(desc, title="", raw_exp=""):
     return extract_experience_from_job(desc, raw_exp)
 
 
-def extract_qualification(desc):
+def extract_qualification(desc, title):
     qual_match = re.search(
-        r"(B\.?Com|B\.?Tech|MBA|CA|CPA|EA|Bachelor|Master|Graduate)[^\n.]{0,80}",
-        desc,
-        re.IGNORECASE,
+        r"(B\.?Com|B\.?Tech|MBA|CA|CPA|EA|Bachelor|Master|Graduate|Post.?Graduate)[^\n.]{0,80}",
+        desc, re.IGNORECASE,
     )
     if qual_match:
         return qual_match.group(0).strip()[:120]
-    return "Graduate / MBA Finance (preferred)"
+    return "Graduate / Post-Graduate (Accounting / Finance preferred)"
 
 
 def main():
     log("=" * 50)
-    log("US Tax Mortgage Jobs Bot — LinkedIn + Naukri + Indeed")
+    log("US Tax Jobs Bot — LinkedIn Only")
     log("=" * 50)
 
     if not config.BOT_TOKEN or not config.CHAT_ID:
-        log("ERROR: BOT_TOKEN or CHAT_ID not set.")
+        log("ERROR: BOT_TOKEN or CHAT_ID not set in environment.")
         sys.exit(1)
 
+    log(f"BOT_TOKEN present: {len(config.BOT_TOKEN)} chars")
+    log(f"CHAT_ID: {config.CHAT_ID}")
     tg_ok, tg_msg = _check_telegram()
     log(f"Telegram check: {tg_msg}")
 
     state = load_state()
     stats = load_stats()
+
     state = handle_commands(state, stats)
     save_state(state)
 
     if state.get("paused"):
-        log("Bot is PAUSED.")
+        log("Bot is PAUSED. Send /resume to restart.")
         return
 
     # Dynamic scrape window: fetch only jobs since last successful run (approx. 1 hour for hourly runs)
@@ -755,6 +612,8 @@ def main():
     log(f"Fetch window: {since_seconds}s ({since_seconds // 60}m) — since last run at {cutoff_ist.strftime('%H:%M IST')}")
 
     seen = load_seen()
+    log(f"Loaded {len(seen)} previously seen jobs.")
+
     try:
         jobs = fetch_all_jobs(since_seconds=since_seconds)
     except Exception as e:
@@ -767,72 +626,84 @@ def main():
             _mark_seen(job, seen)
         save_seen(seen)
         _mark_run_complete(state)
-        log(f"Seed mode: marked {len(jobs)} jobs as seen.")
+        log(f"Seed mode: marked {len(jobs)} jobs as seen, sent 0.")
         return
 
-    india_jobs = [j for j in jobs if is_india_location(j)]
-    log(f"India jobs: {len(india_jobs)} / {len(jobs)}")
+    print(f"DEBUG: Total jobs scraped: {len(jobs)}")
+    log(f"Total jobs scraped: {len(jobs)}")
 
-    matched_jobs = []
+    india_jobs = [j for j in jobs if is_india_location(j)]
+    log(f"India/Remote: {len(india_jobs)} out of {len(jobs)} total.")
+
+    us_tax_jobs = []
     enrich_budget = getattr(config, "MAX_ENRICH_PER_CYCLE", 30)
     enriched = 0
     for job in india_jobs:
-        if not _passes_early_filter(job, MORTGAGE_ROLE_TITLE):
+        if not _passes_early_filter(job, US_TAX_TITLE):
             continue
-        if is_mortgage_tax_job(job):
-            matched_jobs.append(job)
+        if is_us_tax_job(job):
+            us_tax_jobs.append(job)
             continue
         if enriched >= enrich_budget:
             continue
         job = enrich_job(job)
         enriched += 1
-        if is_mortgage_tax_job(job):
-            matched_jobs.append(job)
+        if is_us_tax_job(job):
+            us_tax_jobs.append(job)
 
     log(f"Enriched {enriched} jobs (budget {enrich_budget})")
-    log(f"Mortgage/Tax relevant: {len(matched_jobs)}")
+
+    log(f"US Tax relevant: {len(us_tax_jobs)} out of {len(india_jobs)} India jobs.")
 
     cutoff_ist = _cycle_cutoff_ist(state)
     log(f"Post window: since last run at {cutoff_ist.strftime('%Y-%m-%d %H:%M IST')}")
-    fresh_jobs = [j for j in matched_jobs if _passes_post_window(j, cutoff_ist)]
-    log(f"Posted since cutoff: {len(fresh_jobs)} (from {len(matched_jobs)} matched)")
+    fresh_jobs = [j for j in us_tax_jobs if _passes_post_window(j, cutoff_ist)]
+    log(f"Posted since cutoff: {len(fresh_jobs)} (from {len(us_tax_jobs)} matched)")
 
     new_jobs = [j for j in fresh_jobs if not _is_seen(j, seen)]
     new_jobs.sort(key=lambda j: str(j.get("posted") or j.get("fetched_at") or ""))
     log(f"New jobs to send: {len(new_jobs)}")
 
     if not new_jobs:
+        log("No new US Tax jobs this cycle.")
         save_seen(seen)
         save_stats(stats)
         _mark_run_complete(state)
-        log("No new jobs this cycle.")
-        _write_cycle_report(len(jobs), len(india_jobs), len(matched_jobs), 0, 0, len(seen), fresh_today=len(fresh_jobs), telegram_ok=tg_ok, telegram_detail=tg_msg)
+        _write_cycle_report(len(jobs), len(india_jobs), len(us_tax_jobs), 0, 0, len(seen), fresh_today=len(fresh_jobs), telegram_ok=tg_ok, telegram_detail=tg_msg)
         return
 
     if len(new_jobs) > config.MAX_JOBS_PER_CYCLE:
-        new_jobs = new_jobs[: config.MAX_JOBS_PER_CYCLE]
+        log(f"Capping to {config.MAX_JOBS_PER_CYCLE} jobs this cycle.")
+        new_jobs = new_jobs[:config.MAX_JOBS_PER_CYCLE]
 
     sent = 0
     for job in new_jobs:
-        desc = job.get("description", "")
+        desc  = job.get("description", "")
         title = job.get("title", "")
-        job["_experience"] = extract_experience(desc, title, job.get("experience", ""))
-        job["_qualification"] = extract_qualification(desc)
-        if send_job(job):
-            _mark_seen(job, seen)
-            sent += 1
-            stats["sent"] += 1
-            co = job.get("company", "Other")
-            stats["companies"][co] = stats["companies"].get(co, 0) + 1
-            log(f"  Sent: {job['title']} @ {job['company']}")
-        else:
-            log(f"  Failed to send: {job['title']} @ {job['company']}")
+        if not job.get("_experience"):
+            job["_experience"] = extract_experience(desc, title, job.get("experience", ""))
+        if not job.get("_qualification"):
+            job["_qualification"] = extract_qualification(desc, title)
+
+        try:
+            ok = send_job(job)
+            if ok:
+                _mark_seen(job, seen)
+                sent += 1
+                stats["sent"] += 1
+                company = job.get("company", "Other")
+                stats["companies"][company] = stats["companies"].get(company, 0) + 1
+                log(f"  Sent: {job['title']} @ {job['company']}")
+            else:
+                log(f"  Failed: {job['title']}")
+        except Exception as e:
+            log(f"  Error: {e}")
 
     save_seen(seen)
     save_stats(stats)
     _mark_run_complete(state)
-    _write_cycle_report(len(jobs), len(india_jobs), len(matched_jobs), len(new_jobs), sent, len(seen), fresh_today=len(fresh_jobs), telegram_ok=tg_ok, telegram_detail=tg_msg)
-    log(f"Done. Sent {sent} jobs. Today total: {stats['sent']}.")
+    _write_cycle_report(len(jobs), len(india_jobs), len(us_tax_jobs), len(new_jobs), sent, len(seen), fresh_today=len(fresh_jobs), telegram_ok=tg_ok, telegram_detail=tg_msg)
+    log(f"Done. Sent {sent} new jobs. Today total: {stats['sent']}. Tracked: {len(seen)}")
 
 
 if __name__ == "__main__":
