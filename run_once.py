@@ -218,8 +218,9 @@ def is_india_location(job):
     if search_loc and any(kw in search_loc for kw in INDIA_LOCATION_KEYWORDS):
         return True
 
+    # Empty location = UNKNOWN, accept for US tax jobs (return False)
     if not loc.strip():
-        return True
+        return False
 
     # Rule 2: Reject non-India foreign locations
     if any(kw in loc for kw in FOREIGN_LOCATION_KEYWORDS):
